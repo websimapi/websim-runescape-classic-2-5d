@@ -9,13 +9,12 @@ class RunescapeClassicGame {
         this.isProcessingActions = false;
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         this.gameInitialized = false;
-        this.keysPressed = {}; // Initialize keysPressed object
         
         // World generation settings
         this.chunkSize = 4; // Size of a single tile
         this.chunksPerDimension = 5; // How many chunks to render in each direction
         this.loadedChunks = new Map(); // Map to track loaded chunks by coordinates
-        this.visibleDistance = 100; // Increased from 50 to improve render distance
+        this.visibleDistance = 50; // Distance at which chunks are visible
         
         // Camera controls
         this.cameraRotation = 0; // Current rotation angle
@@ -25,7 +24,8 @@ class RunescapeClassicGame {
         this.minCameraAngle = Math.PI/6; // Minimum angle (more horizontal view)
         this.maxCameraAngle = Math.PI/3; // Maximum angle (more top-down view)
         this.minZoom = 15; // Minimum zoom level (closest to character)
-        this.maxZoom = 60; // Increased from 40 to allow zooming out further
+        this.maxZoom = 40; // Maximum zoom level (furthest from character)
+        this.keysPressed = {};    // Track keys currently pressed
         
         // Initialize game systems
         this.setupRenderer();
@@ -240,8 +240,8 @@ class RunescapeClassicGame {
         const centerChunkX = Math.floor(centerPosition.x / (this.chunkSize * this.chunksPerDimension));
         const centerChunkZ = Math.floor(centerPosition.z / (this.chunkSize * this.chunksPerDimension));
         
-        // Calculate view distance in chunks - increased multiplier for more chunks
-        const viewDistanceInChunks = Math.ceil(this.visibleDistance / (this.chunkSize * this.chunksPerDimension)) + 2;
+        // Calculate view distance in chunks
+        const viewDistanceInChunks = Math.ceil(this.visibleDistance / (this.chunkSize * this.chunksPerDimension));
         
         // Track which chunks should be visible
         const visibleChunkKeys = new Set();
