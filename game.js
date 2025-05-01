@@ -240,23 +240,23 @@ class RunescapeClassicGame {
 
         // Rotate camera left/right
         if (this.keysPressed['ArrowLeft']) {
-            this.cameraRotation += rotationSpeed;
+            this.cameraRotation -= rotationSpeed;
             this.updateCameraPosition();
         }
         if (this.keysPressed['ArrowRight']) {
-            this.cameraRotation -= rotationSpeed;
+            this.cameraRotation += rotationSpeed;
             this.updateCameraPosition();
         }
 
         // Adjust camera vertical angle
         if (this.keysPressed['ArrowUp']) {
             // Lower angle (look more from above)
-            this.cameraAngle = Math.max(Math.PI/8, this.cameraAngle - angleSpeed);
+            this.cameraAngle = Math.max(Math.PI/8, this.cameraAngle + angleSpeed);
             this.updateCameraPosition();
         }
         if (this.keysPressed['ArrowDown']) {
             // Higher angle (look more level)
-            this.cameraAngle = Math.min(Math.PI/3, this.cameraAngle + angleSpeed);
+            this.cameraAngle = Math.min(Math.PI/3, this.cameraAngle - angleSpeed);
             this.updateCameraPosition();
         }
     }
