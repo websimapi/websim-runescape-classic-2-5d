@@ -1,316 +1,356 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-class Game {
+class RunescapeClassicGame {
     constructor() {
+        // Core components
         this.canvas = document.getElementById('gameCanvas');
+        this.clock = new THREE.Clock();
+        this.moveQueue = [];
+        this.isProcessingActions = false;
+        this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         
-        // Initialize the core components immediately
+        // Initialize game systems
         this.setupRenderer();
         this.setupScene();
         this.setupCamera();
         this.setupLights();
-        this.setupControls();
-        
-        // Start animation loop right away - don't wait for textures
-        this.animate();
-        
-        // Load textures and create world/player after animation has started
-        this.loadTextures().then(() => {
+        this.loadAssets().then(() => {
             this.createWorld();
             this.createPlayer();
             this.setupEventListeners();
-            console.log("Game fully initialized with textures");
-        }).catch(error => {
-            console.error("Error loading textures:", error);
-            // Create fallback objects if textures fail
-            this.createFallbackWorld();
-            this.createFallbackPlayer();
-            this.setupEventListeners();
+            console.log("Game fully initialized");
         });
+        
+        // Start game loop
+        this.lastTick = Date.now();
+        this.animate();
     }
 
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: this.canvas, 
-            antialias: true
+            antialias: false // Deliberately disable for that classic blocky look
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(1); // Force lower pixel ratio for retro look
         this.renderer.setClearColor(0x87CEEB); // Sky blue background
-        
-        console.log("Renderer initialized");
     }
 
     setupScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87CEEB); // Ensure background is set on the scene too
-        console.log("Scene initialized");
+        this.scene.background = new THREE.Color(0x87CEEB);
     }
 
     setupCamera() {
-        this.camera = new THREE.PerspectiveCamera(
-            60, window.innerWidth / window.innerHeight, 0.1, 1000
+        // Fixed isometric-style camera
+        const aspectRatio = window.innerWidth / window.innerHeight;
+        this.camera = new THREE.OrthographicCamera(
+            -15 * aspectRatio, 15 * aspectRatio, 
+            15, -15, 
+            0.1, 1000
         );
-        this.camera.position.set(0, 10, 20); // Position further back and higher up
+        
+        // Position for isometric view (fixed angle, no rotation allowed)
+        this.camera.position.set(20, 25, 20);
         this.camera.lookAt(0, 0, 0);
-        console.log("Camera initialized");
     }
 
     setupLights() {
+        // Simple directional light for flat shading
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 20, 10);
         this.scene.add(directionalLight);
-        
-        // Add a hemisphere light for better outdoor lighting
-        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-        this.scene.add(hemisphereLight);
-        
-        console.log("Lights initialized");
     }
 
-    setupControls() {
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.screenSpacePanning = false;
-        this.controls.maxPolarAngle = Math.PI / 2.5;
-        this.controls.minDistance = 5;
-        this.controls.maxDistance = 50;
-        console.log("Controls initialized");
-    }
-
-    async loadTextures() {
+    async loadAssets() {
         const textureLoader = new THREE.TextureLoader();
         
-        // Create a promise-based loading mechanism
         const loadTexture = (url) => {
             return new Promise((resolve, reject) => {
                 textureLoader.load(
                     url,
-                    (texture) => {
-                        console.log(`Texture loaded: ${url}`);
-                        resolve(texture);
-                    },
-                    (progressEvent) => {
-                        console.log(`Loading texture ${url}: ${progressEvent}`);
-                    },
-                    (error) => {
-                        console.error(`Error loading texture ${url}:`, error);
-                        reject(error);
-                    }
+                    (texture) => resolve(texture),
+                    undefined,
+                    (error) => reject(error)
                 );
             });
         };
         
         try {
-            // Load the grass texture
             this.grassTexture = await loadTexture('./grass.png');
-            this.grassTexture.wrapS = THREE.RepeatWrapping;
-            this.grassTexture.wrapT = THREE.RepeatWrapping;
-            this.grassTexture.repeat.set(100, 100);
+            this.grassTexture.magFilter = THREE.NearestFilter;
+            this.grassTexture.minFilter = THREE.NearestFilter;
             
-            // Load the player texture
             this.playerTexture = await loadTexture('./character.png');
+            this.playerTexture.magFilter = THREE.NearestFilter;
+            this.playerTexture.minFilter = THREE.NearestFilter;
             
-            console.log("All textures loaded successfully");
             return true;
         } catch (error) {
-            console.error("Texture loading failed:", error);
-            throw error;
+            console.error("Failed to load textures:", error);
+            return false;
         }
     }
 
-    createFallbackWorld() {
-        // Create a ground plane with a basic material
-        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x33aa33, // Green color
-            roughness: 1.0,
-            metalness: 0.0
-        });
-        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        this.ground.rotation.x = -Math.PI / 2; // Rotate to be flat
-        this.ground.position.y = 0;
-        this.scene.add(this.ground);
-        
-        // Add a grid helper for reference
-        const grid = new THREE.GridHelper(100, 100, 0x000000, 0x000000);
-        grid.material.opacity = 0.2;
-        grid.material.transparent = true;
-        this.scene.add(grid);
-        
-        console.log("Fallback world created");
-    }
-
     createWorld() {
-        // Create a ground plane
-        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            map: this.grassTexture,
-            roughness: 1.0,
-            metalness: 0.0
-        });
-        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        this.ground.rotation.x = -Math.PI / 2; // Rotate to be flat
-        this.ground.position.y = 0;
-        this.scene.add(this.ground);
+        // Create ground tiles (a grid of flat squares rather than a single plane)
+        const worldSize = 20;
+        const tileSize = 4;
         
-        // Add a grid helper for reference
-        const grid = new THREE.GridHelper(100, 100, 0x000000, 0x000000);
-        grid.material.opacity = 0.2;
-        grid.material.transparent = true;
-        this.scene.add(grid);
+        this.tiles = [];
         
-        console.log("World created with textured ground");
+        for (let x = -worldSize/2; x < worldSize/2; x++) {
+            for (let z = -worldSize/2; z < worldSize/2; z++) {
+                // Create a simple tile geometry
+                const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
+                
+                // Create material with flat shading and the grass texture
+                const tileMaterial = new THREE.MeshLambertMaterial({
+                    map: this.grassTexture,
+                    flatShading: true
+                });
+                
+                // Create the tile mesh
+                const tile = new THREE.Mesh(tileGeometry, tileMaterial);
+                
+                // Position and rotate
+                tile.position.set(x * tileSize, 0, z * tileSize);
+                tile.rotation.x = -Math.PI / 2; // Lay flat
+                
+                // Add to scene and tracking array
+                this.scene.add(tile);
+                this.tiles.push(tile);
+            }
+        }
+        
+        // Add some simple blocky objects to the scene
+        this.addBlockyObjects();
     }
-
-    createFallbackPlayer() {
-        // Create a simple colored cube as a fallback player
-        const geometry = new THREE.BoxGeometry(1, 3, 1);
-        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        this.playerObject = new THREE.Mesh(geometry, material);
-        this.playerObject.position.set(0, 1.5, 0);
-        this.scene.add(this.playerObject);
+    
+    addBlockyObjects() {
+        // Create some simple blocky objects in the classic RS style (flat-shaded, no textures)
+        const colors = [0x964B00, 0x7B3F00, 0x5D2E00]; // Brown shades
         
-        // Player movement properties
-        this.targetPosition = new THREE.Vector3(0, 1.5, 0);
-        this.isMoving = false;
-        this.moveSpeed = 0.08;
+        // Create a blocky tree
+        for (let i = 0; i < 5; i++) {
+            const x = Math.random() * 40 - 20;
+            const z = Math.random() * 40 - 20;
+            
+            // Tree trunk
+            const trunkGeometry = new THREE.BoxGeometry(1, 3, 1);
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: colors[1], flatShading: true });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.set(x, 1.5, z);
+            this.scene.add(trunk);
+            
+            // Tree top (cube)
+            const topGeometry = new THREE.BoxGeometry(3, 3, 3);
+            const topMaterial = new THREE.MeshLambertMaterial({ color: 0x006400, flatShading: true });
+            const top = new THREE.Mesh(topGeometry, topMaterial);
+            top.position.set(x, 4.5, z);
+            this.scene.add(top);
+        }
         
-        console.log("Fallback player created");
+        // Create a blocky rock
+        for (let i = 0; i < 7; i++) {
+            const x = Math.random() * 40 - 20;
+            const z = Math.random() * 40 - 20;
+            
+            const rockGeometry = new THREE.BoxGeometry(2, 1.5, 2);
+            const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x808080, flatShading: true });
+            const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+            rock.position.set(x, 0.75, z);
+            this.scene.add(rock);
+        }
     }
 
     createPlayer() {
-        // Create a billboard sprite for the player
+        // Create a billboard-style sprite for the player (2D in 3D world)
         const spriteMaterial = new THREE.SpriteMaterial({ 
             map: this.playerTexture,
             transparent: true
         });
         
         this.playerSprite = new THREE.Sprite(spriteMaterial);
-        this.playerSprite.scale.set(2, 3, 1);  // Adjusted scale for better visibility
-        this.playerSprite.position.set(0, 1.5, 0); // Position higher above ground
+        this.playerSprite.scale.set(3, 4, 1);
+        this.playerSprite.position.set(0, 2, 0);
         this.scene.add(this.playerSprite);
         
-        // Add a marker below the player
-        const markerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16);
-        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        this.playerMarker = new THREE.Mesh(markerGeometry, markerMaterial);
-        this.playerMarker.position.set(0, 0.05, 0);
-        this.scene.add(this.playerMarker);
+        // Add a shadow circle under the player
+        const shadowGeometry = new THREE.CircleGeometry(0.7, 16);
+        const shadowMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x000000, 
+            transparent: true,
+            opacity: 0.4
+        });
+        this.playerShadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
+        this.playerShadow.rotation.x = -Math.PI / 2; // Make flat on ground
+        this.playerShadow.position.set(0, 0.01, 0); // Just above ground
+        this.scene.add(this.playerShadow);
         
-        // Player movement properties
-        this.targetPosition = new THREE.Vector3(0, 1.5, 0);
-        this.isMoving = false;
-        this.moveSpeed = 0.08;
-        
-        this.playerObject = this.playerSprite; // Reference for movement
-        
-        console.log("Player sprite created");
+        // Player state
+        this.playerState = {
+            position: new THREE.Vector3(0, 2, 0),
+            targetPosition: null,
+            isMoving: false,
+            moveSpeed: 2, // Units per second
+        };
     }
 
     setupEventListeners() {
-        this.raycaster = new THREE.Raycaster();
-        this.pointer = new THREE.Vector2();
-        
         window.addEventListener('resize', () => this.onWindowResize());
-        
-        // Click to move
         this.canvas.addEventListener('click', (event) => this.onCanvasClick(event));
         
-        console.log("Event listeners set up");
+        // Mouse cursor handling for interaction
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
     }
 
     onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
+        const aspectRatio = window.innerWidth / window.innerHeight;
+        
+        // Update orthographic camera
+        this.camera.left = -15 * aspectRatio;
+        this.camera.right = 15 * aspectRatio;
         this.camera.updateProjectionMatrix();
+        
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
     onCanvasClick(event) {
-        // Calculate pointer position in normalized device coordinates
-        this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        // Get mouse position
+        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         
-        // Update the picking ray with the camera and pointer position
-        this.raycaster.setFromCamera(this.pointer, this.camera);
+        // Raycast to find clicked position
+        this.raycaster.setFromCamera(this.mouse, this.camera);
         
-        // Calculate objects intersecting the picking ray
-        const intersects = this.raycaster.intersectObject(this.ground);
-        
+        // Check for intersection with any tile
+        const intersects = this.raycaster.intersectObjects(this.tiles);
         if (intersects.length > 0) {
-            // Get the clicked point on the ground
-            const point = intersects[0].point;
+            const clickPoint = intersects[0].point;
             
-            // Set the target position (keeping the same y height for sprite)
-            this.targetPosition.set(point.x, 1.5, point.z);
-            this.isMoving = true;
+            // Queue movement action (classic RS style)
+            this.moveQueue.push({
+                type: 'move',
+                target: new THREE.Vector3(clickPoint.x, 2, clickPoint.z)
+            });
             
-            console.log("Moving to:", point);
+            // Visual feedback
+            this.showClickMarker(clickPoint);
         }
     }
-
-    movePlayer() {
-        if (!this.isMoving || !this.playerObject) return;
+    
+    showClickMarker(position) {
+        // Show a temporary click marker
+        if (!this.clickMarker) {
+            const markerGeometry = new THREE.CircleGeometry(0.5, 8);
+            const markerMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffff00,
+                transparent: true,
+                opacity: 0.7
+            });
+            this.clickMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+            this.clickMarker.rotation.x = -Math.PI / 2; // Make flat on ground
+        }
         
-        // Calculate direction and distance
-        const direction = new THREE.Vector3().subVectors(this.targetPosition, this.playerObject.position);
-        const distance = direction.length();
+        // Position and add to scene if not already
+        this.clickMarker.position.set(position.x, 0.02, position.z);
+        this.scene.add(this.clickMarker);
         
-        // If player is close enough to target, stop moving
-        if (distance < 0.1) {
-            this.isMoving = false;
+        // Remove after delay
+        setTimeout(() => {
+            this.scene.remove(this.clickMarker);
+        }, 500);
+    }
+    
+    processActionQueue() {
+        // If already processing or queue is empty, return
+        if (this.isProcessingActions || this.moveQueue.length === 0) return;
+        
+        // Get next action
+        const nextAction = this.moveQueue.shift();
+        this.isProcessingActions = true;
+        
+        if (nextAction.type === 'move') {
+            // Set player target position
+            this.playerState.targetPosition = nextAction.target;
+            this.playerState.isMoving = true;
+        }
+        
+        // In classic RS, actions are processed on ticks, not instantly
+        setTimeout(() => {
+            this.isProcessingActions = false;
+        }, this.tickRate);
+    }
+    
+    updatePlayerMovement(deltaTime) {
+        if (!this.playerState.isMoving || !this.playerState.targetPosition) return;
+        
+        // Calculate direction vector
+        const direction = new THREE.Vector3().subVectors(
+            this.playerState.targetPosition,
+            this.playerSprite.position
+        );
+        
+        // If close enough to target, snap to position and stop
+        if (direction.length() < 0.1) {
+            this.playerSprite.position.copy(this.playerState.targetPosition);
+            this.playerState.isMoving = false;
+            this.playerState.targetPosition = null;
             return;
         }
         
-        // Normalize and scale by speed
-        direction.normalize().multiplyScalar(this.moveSpeed);
+        // Normalize direction and apply movement
+        direction.normalize();
+        const moveAmount = this.playerState.moveSpeed * deltaTime;
         
-        // Move player
-        this.playerObject.position.add(direction);
+        // Move player and update shadow
+        this.playerSprite.position.add(direction.multiplyScalar(moveAmount));
+        this.playerShadow.position.x = this.playerSprite.position.x;
+        this.playerShadow.position.z = this.playerSprite.position.z;
         
-        // Update marker position if it exists
-        if (this.playerMarker) {
-            this.playerMarker.position.x = this.playerObject.position.x;
-            this.playerMarker.position.z = this.playerObject.position.z;
-        }
+        // Update camera to follow player (maintaining isometric view)
+        this.updateCameraPosition();
+    }
+    
+    updateCameraPosition() {
+        // Get player position
+        const targetPos = new THREE.Vector3(
+            this.playerSprite.position.x,
+            0,
+            this.playerSprite.position.z
+        );
         
-        // Make camera follow player
-        this.controls.target.copy(this.playerObject.position);
+        // Move camera target to follow player
+        this.camera.lookAt(targetPos);
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
         
-        // Add a debug cube if scene is empty (only during initialization)
-        if (!this.debugCubeAdded && !this.ground) {
-            const debugCube = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 2, 2),
-                new THREE.MeshBasicMaterial({ color: 0xffff00 })
-            );
-            debugCube.position.set(0, 1, 0);
-            this.scene.add(debugCube);
-            this.debugCubeAdded = true;
-            console.log("Debug cube added to scene");
+        const deltaTime = this.clock.getDelta();
+        
+        // Process the action queue on RS classic tick rate
+        const now = Date.now();
+        if (now - this.lastTick > this.tickRate) {
+            this.processActionQueue();
+            this.lastTick = now;
         }
         
         // Update player movement
-        this.movePlayer();
+        this.updatePlayerMovement(deltaTime);
         
-        // Update controls
-        this.controls.update();
-        
-        // Render scene
+        // Render the scene
         this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Initialize the game when the page loads
+// Initialize game when page loads
 window.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM loaded, initializing game");
-    window.game = new Game(); // Store in window for debugging
+    console.log("Starting RuneScape Classic 2.5D game");
+    window.game = new RunescapeClassicGame();
 });
