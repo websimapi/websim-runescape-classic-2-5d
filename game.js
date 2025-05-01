@@ -230,8 +230,8 @@ class RunescapeClassicGame {
     }
 
     handleMouseWheel(event) {
-        // Determine scroll direction
-        const scrollAmount = event.deltaY * 0.01;
+        // Determine scroll direction - inverting the scroll direction
+        const scrollAmount = event.deltaY * -0.01;
         
         // Adjust camera distance (zoom)
         this.cameraDistance = Math.max(
