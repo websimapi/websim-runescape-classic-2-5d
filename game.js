@@ -10,6 +10,12 @@ class RunescapeClassicGame {
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         this.gameInitialized = false;
         
+        // Camera controls
+        this.cameraRotation = 0; // Current rotation angle
+        this.cameraDistance = 25; // Distance from center
+        this.cameraHeight = 25;   // Height of camera
+        this.keysPressed = {};    // Track keys currently pressed
+        
         // Initialize game systems
         this.setupRenderer();
         this.setupScene();
@@ -53,9 +59,8 @@ class RunescapeClassicGame {
             0.1, 1000
         );
         
-        // Position for isometric view (fixed angle, no rotation allowed)
-        this.camera.position.set(20, 25, 20);
-        this.camera.lookAt(0, 0, 0);
+        // Position for isometric view (updates with camera rotation)
+        this.updateCameraPosition();
     }
 
     setupLights() {
@@ -207,9 +212,51 @@ class RunescapeClassicGame {
         window.addEventListener('resize', () => this.onWindowResize());
         this.canvas.addEventListener('click', (event) => this.onCanvasClick(event));
         
+        // Add keyboard controls for camera
+        window.addEventListener('keydown', (event) => this.handleKeyDown(event));
+        window.addEventListener('keyup', (event) => this.handleKeyUp(event));
+        
         // Mouse cursor handling for interaction
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
+    }
+
+    handleKeyDown(event) {
+        this.keysPressed[event.key] = true;
+    }
+
+    handleKeyUp(event) {
+        this.keysPressed[event.key] = false;
+    }
+
+    processKeyboardInput(deltaTime) {
+        // Return if game not initialized
+        if (!this.gameInitialized) return;
+
+        const rotationSpeed = 1.5 * deltaTime; // Rotation speed in radians per second
+        const panSpeed = 10 * deltaTime; // Pan speed in units per second
+
+        // Rotate camera left/right
+        if (this.keysPressed['ArrowLeft']) {
+            this.cameraRotation += rotationSpeed;
+            this.updateCameraPosition();
+        }
+        if (this.keysPressed['ArrowRight']) {
+            this.cameraRotation -= rotationSpeed;
+            this.updateCameraPosition();
+        }
+
+        // Move camera in/out
+        if (this.keysPressed['ArrowUp']) {
+            this.cameraDistance = Math.max(15, this.cameraDistance - panSpeed);
+            this.cameraHeight = Math.max(15, this.cameraHeight - panSpeed);
+            this.updateCameraPosition();
+        }
+        if (this.keysPressed['ArrowDown']) {
+            this.cameraDistance = Math.min(40, this.cameraDistance + panSpeed);
+            this.cameraHeight = Math.min(40, this.cameraHeight + panSpeed);
+            this.updateCameraPosition();
+        }
     }
 
     onWindowResize() {
@@ -323,17 +370,17 @@ class RunescapeClassicGame {
     }
     
     updateCameraPosition() {
-        // Safety check - only update if player exists
-        if (!this.gameInitialized || !this.playerSprite) return;
+        // Get player position or use origin if no player
+        const targetPos = this.playerSprite ? 
+            new THREE.Vector3(this.playerSprite.position.x, 0, this.playerSprite.position.z) : 
+            new THREE.Vector3(0, 0, 0);
         
-        // Get player position
-        const targetPos = new THREE.Vector3(
-            this.playerSprite.position.x,
-            0,
-            this.playerSprite.position.z
-        );
+        // Calculate camera position based on rotation angle and distance
+        const cameraX = targetPos.x + this.cameraDistance * Math.sin(this.cameraRotation);
+        const cameraZ = targetPos.z + this.cameraDistance * Math.cos(this.cameraRotation);
         
-        // Move camera target to follow player
+        // Update camera position
+        this.camera.position.set(cameraX, this.cameraHeight, cameraZ);
         this.camera.lookAt(targetPos);
     }
 
@@ -348,6 +395,9 @@ class RunescapeClassicGame {
             this.processActionQueue();
             this.lastTick = now;
         }
+        
+        // Process keyboard input for camera control
+        this.processKeyboardInput(deltaTime);
         
         // Update player movement
         this.updatePlayerMovement(deltaTime);
