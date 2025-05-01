@@ -9,6 +9,7 @@ class RunescapeClassicGame {
         this.isProcessingActions = false;
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         this.gameInitialized = false;
+        this.assetsLoaded = false; // New flag to track asset loading status
         
         // World generation settings
         this.chunkSize = 4; // Size of a single tile
@@ -35,11 +36,14 @@ class RunescapeClassicGame {
         
         // Load assets first, then initialize game objects and start loop
         this.loadAssets().then(() => {
+            this.assetsLoaded = true; // Mark assets as loaded
             this.createWorld();
             this.createPlayer();
             this.setupEventListeners();
             this.gameInitialized = true;
             this.lastTick = Date.now();
+            // Update camera position after assets are loaded
+            this.updateCameraPosition();
             // Start game loop only after initialization
             this.animate();
             console.log("Game fully initialized");
@@ -70,8 +74,13 @@ class RunescapeClassicGame {
             0.1, 1000
         );
         
-        // Position for isometric view (updates with camera rotation)
-        this.updateCameraPosition();
+        // Just set initial camera position without updating chunks
+        this.camera.position.set(
+            this.cameraDistance * Math.sin(this.cameraRotation),
+            this.cameraDistance * Math.sin(this.cameraAngle),
+            this.cameraDistance * Math.cos(this.cameraRotation)
+        );
+        this.camera.lookAt(0, 0, 0);
     }
 
     setupLights() {
@@ -131,6 +140,12 @@ class RunescapeClassicGame {
     }
     
     generateChunk(chunkX, chunkZ) {
+        // Safety check - don't try to generate chunks if textures aren't loaded
+        if (!this.assetsLoaded || !this.grassTexture) {
+            console.warn("Attempted to generate chunk before assets were loaded");
+            return new THREE.Group(); // Return empty group to prevent errors
+        }
+        
         // Create a chunk of terrain at the specified chunk coordinates
         const chunkGroup = new THREE.Group();
         const startX = chunkX * this.chunkSize * this.chunksPerDimension;
@@ -236,6 +251,11 @@ class RunescapeClassicGame {
     }
     
     updateVisibleChunks(centerPosition) {
+        // Skip chunk generation if assets aren't loaded yet
+        if (!this.assetsLoaded) {
+            return;
+        }
+        
         // Get the player's chunk coordinates
         const centerChunkX = Math.floor(centerPosition.x / (this.chunkSize * this.chunksPerDimension));
         const centerChunkZ = Math.floor(centerPosition.z / (this.chunkSize * this.chunksPerDimension));
@@ -282,6 +302,12 @@ class RunescapeClassicGame {
     }
     
     createPlayer() {
+        // Safety check - don't try to create player if textures aren't loaded
+        if (!this.assetsLoaded || !this.playerTexture) {
+            console.warn("Attempted to create player before assets were loaded");
+            return;
+        }
+        
         // Create a billboard-style sprite for the player (2D in 3D world)
         const spriteMaterial = new THREE.SpriteMaterial({ 
             map: this.playerTexture,
@@ -519,8 +545,10 @@ class RunescapeClassicGame {
         this.camera.bottom = -zoom;
         this.camera.updateProjectionMatrix();
         
-        // Update visible chunks when camera changes significantly
-        this.updateVisibleChunks(targetPos);
+        // Only update chunks if assets are loaded
+        if (this.assetsLoaded) {
+            this.updateVisibleChunks(targetPos);
+        }
     }
 
     animate() {
