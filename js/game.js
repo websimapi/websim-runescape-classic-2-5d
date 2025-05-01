@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { setupRenderer } from './js/renderer.js';
-import { setupCamera, updateCameraPosition } from './js/camera.js';
-import { createWorld, updateVisibleChunks } from './js/world.js';
-import { createPlayer, updatePlayerMovement } from './js/player.js';
-import { setupEventListeners, processKeyboardInput } from './js/input.js';
+import { setupRenderer } from './renderer.js';
+import { setupCamera, updateCameraPosition } from './camera.js';
+import { createWorld, updateVisibleChunks } from './world.js';
+import { createPlayer, updatePlayerMovement } from './player.js';
+import { setupEventListeners, processKeyboardInput } from './input.js';
 
 class RunescapeClassicGame {
     constructor() {
