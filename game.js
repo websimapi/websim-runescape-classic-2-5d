@@ -9,13 +9,12 @@ class RunescapeClassicGame {
         this.isProcessingActions = false;
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         this.gameInitialized = false;
-        this.assetsLoaded = false; // New flag to track asset loading status
         
         // World generation settings
         this.chunkSize = 4; // Size of a single tile
         this.chunksPerDimension = 5; // How many chunks to render in each direction
         this.loadedChunks = new Map(); // Map to track loaded chunks by coordinates
-        this.visibleDistance = 120; // Increased from 50 to ensure larger render distance
+        this.visibleDistance = 100; // Increased from 50 to improve render distance
         
         // Camera controls
         this.cameraRotation = 0; // Current rotation angle
@@ -25,8 +24,7 @@ class RunescapeClassicGame {
         this.minCameraAngle = Math.PI/6; // Minimum angle (more horizontal view)
         this.maxCameraAngle = Math.PI/3; // Maximum angle (more top-down view)
         this.minZoom = 15; // Minimum zoom level (closest to character)
-        this.maxZoom = 40; // Maximum zoom level (furthest from character)
-        this.keysPressed = {};    // Track keys currently pressed
+        this.maxZoom = 60; // Increased from 40 to allow zooming out further
         
         // Initialize game systems
         this.setupRenderer();
@@ -36,14 +34,11 @@ class RunescapeClassicGame {
         
         // Load assets first, then initialize game objects and start loop
         this.loadAssets().then(() => {
-            this.assetsLoaded = true; // Mark assets as loaded
             this.createWorld();
             this.createPlayer();
             this.setupEventListeners();
             this.gameInitialized = true;
             this.lastTick = Date.now();
-            // Update camera position after assets are loaded
-            this.updateCameraPosition();
             // Start game loop only after initialization
             this.animate();
             console.log("Game fully initialized");
@@ -74,13 +69,8 @@ class RunescapeClassicGame {
             0.1, 1000
         );
         
-        // Just set initial camera position without updating chunks
-        this.camera.position.set(
-            this.cameraDistance * Math.sin(this.cameraRotation),
-            this.cameraDistance * Math.sin(this.cameraAngle),
-            this.cameraDistance * Math.cos(this.cameraRotation)
-        );
-        this.camera.lookAt(0, 0, 0);
+        // Position for isometric view (updates with camera rotation)
+        this.updateCameraPosition();
     }
 
     setupLights() {
@@ -140,12 +130,6 @@ class RunescapeClassicGame {
     }
     
     generateChunk(chunkX, chunkZ) {
-        // Safety check - don't try to generate chunks if textures aren't loaded
-        if (!this.assetsLoaded || !this.grassTexture) {
-            console.warn("Attempted to generate chunk before assets were loaded");
-            return new THREE.Group(); // Return empty group to prevent errors
-        }
-        
         // Create a chunk of terrain at the specified chunk coordinates
         const chunkGroup = new THREE.Group();
         const startX = chunkX * this.chunkSize * this.chunksPerDimension;
@@ -251,18 +235,12 @@ class RunescapeClassicGame {
     }
     
     updateVisibleChunks(centerPosition) {
-        // Skip chunk generation if assets aren't loaded yet
-        if (!this.assetsLoaded) {
-            return;
-        }
-        
         // Get the player's chunk coordinates
         const centerChunkX = Math.floor(centerPosition.x / (this.chunkSize * this.chunksPerDimension));
         const centerChunkZ = Math.floor(centerPosition.z / (this.chunkSize * this.chunksPerDimension));
         
-        // Calculate view distance in chunks - adding buffer based on camera distance
-        const cameraBuffer = this.cameraDistance / 10; // Add additional buffer based on zoom level
-        const viewDistanceInChunks = Math.ceil((this.visibleDistance + cameraBuffer) / (this.chunkSize * this.chunksPerDimension));
+        // Calculate view distance in chunks - increased multiplier for more chunks
+        const viewDistanceInChunks = Math.ceil(this.visibleDistance / (this.chunkSize * this.chunksPerDimension)) + 2;
         
         // Track which chunks should be visible
         const visibleChunkKeys = new Set();
@@ -302,12 +280,6 @@ class RunescapeClassicGame {
     }
     
     createPlayer() {
-        // Safety check - don't try to create player if textures aren't loaded
-        if (!this.assetsLoaded || !this.playerTexture) {
-            console.warn("Attempted to create player before assets were loaded");
-            return;
-        }
-        
         // Create a billboard-style sprite for the player (2D in 3D world)
         const spriteMaterial = new THREE.SpriteMaterial({ 
             map: this.playerTexture,
@@ -544,11 +516,6 @@ class RunescapeClassicGame {
         this.camera.top = zoom;
         this.camera.bottom = -zoom;
         this.camera.updateProjectionMatrix();
-        
-        // Only update chunks if assets are loaded
-        if (this.assetsLoaded) {
-            this.updateVisibleChunks(targetPos);
-        }
     }
 
     animate() {
