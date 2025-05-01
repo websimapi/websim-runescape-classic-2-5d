@@ -5,34 +5,45 @@ class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.initializeScene();
-        this.createWorld();
-        this.createPlayer();
-        this.setupEventListeners();
-        this.animate();
+        this.loadTextures().then(() => {
+            this.createWorld();
+            this.createPlayer();
+            this.setupEventListeners();
+            this.animate();
+            console.log("Game initialized successfully");
+        }).catch(error => {
+            console.error("Error loading textures:", error);
+        });
     }
 
     initializeScene() {
         // Set up renderer
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ 
+            canvas: this.canvas, 
+            antialias: true,
+            alpha: true
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setClearColor(0x87CEEB); // Sky blue background
 
         // Set up scene
         this.scene = new THREE.Scene();
         
         // Set up camera (isometric-ish view)
         this.camera = new THREE.PerspectiveCamera(
-            45, window.innerWidth / window.innerHeight, 0.1, 1000
+            60, window.innerWidth / window.innerHeight, 0.1, 1000
         );
-        this.camera.position.set(10, 10, 10);
+        this.camera.position.set(5, 8, 15);
         this.camera.lookAt(0, 0, 0);
         
         // Add some light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(1, 1, 1);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(10, 20, 10);
+        directionalLight.castShadow = true;
         this.scene.add(directionalLight);
         
         // Add controls
@@ -45,17 +56,41 @@ class Game {
         this.controls.maxDistance = 50;
     }
 
+    async loadTextures() {
+        const textureLoader = new THREE.TextureLoader();
+        
+        // Create a promise-based loading mechanism
+        const loadTexture = (url) => {
+            return new Promise((resolve, reject) => {
+                textureLoader.load(
+                    url,
+                    (texture) => resolve(texture),
+                    undefined,
+                    (error) => reject(error)
+                );
+            });
+        };
+        
+        try {
+            this.grassTexture = await loadTexture('grass.png');
+            this.grassTexture.wrapS = THREE.RepeatWrapping;
+            this.grassTexture.wrapT = THREE.RepeatWrapping;
+            this.grassTexture.repeat.set(100, 100);
+            
+            this.playerTexture = await loadTexture('character.png');
+            console.log("Textures loaded successfully");
+            return true;
+        } catch (error) {
+            console.error("Error loading textures:", error);
+            throw error;
+        }
+    }
+
     createWorld() {
         // Create a ground plane
-        const textureLoader = new THREE.TextureLoader();
-        const grassTexture = textureLoader.load('grass.png');
-        grassTexture.wrapS = THREE.RepeatWrapping;
-        grassTexture.wrapT = THREE.RepeatWrapping;
-        grassTexture.repeat.set(100, 100);
-        
         const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            map: grassTexture,
+            map: this.grassTexture,
             roughness: 1.0,
             metalness: 0.0
         });
@@ -63,27 +98,39 @@ class Game {
         this.ground.rotation.x = -Math.PI / 2; // Rotate to be flat
         this.ground.position.y = 0;
         this.scene.add(this.ground);
+        
+        // Add a simple grid for reference
+        const grid = new THREE.GridHelper(20, 20, 0x000000, 0x000000);
+        grid.material.opacity = 0.2;
+        grid.material.transparent = true;
+        this.scene.add(grid);
     }
 
     createPlayer() {
         // Create a billboard sprite for the player
-        const textureLoader = new THREE.TextureLoader();
-        const playerTexture = textureLoader.load('character.png');
-        
         const spriteMaterial = new THREE.SpriteMaterial({ 
-            map: playerTexture,
+            map: this.playerTexture,
             transparent: true
         });
         
         this.playerSprite = new THREE.Sprite(spriteMaterial);
-        this.playerSprite.scale.set(2, 2, 1);
-        this.playerSprite.position.set(0, 1, 0); // Position slightly above ground
+        this.playerSprite.scale.set(2, 3, 1);  // Adjusted scale for better visibility
+        this.playerSprite.position.set(0, 1.5, 0); // Position higher above ground
         this.scene.add(this.playerSprite);
         
+        // Debug object to verify scene rendering
+        const debugSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        debugSphere.position.copy(this.playerSprite.position);
+        debugSphere.position.y -= 0.5;  // Just below the sprite
+        this.scene.add(debugSphere);
+        
         // Player movement
-        this.targetPosition = new THREE.Vector3(0, 1, 0);
+        this.targetPosition = new THREE.Vector3(0, 1.5, 0);
         this.isMoving = false;
-        this.moveSpeed = 0.05;
+        this.moveSpeed = 0.08;
     }
 
     setupEventListeners() {
@@ -117,9 +164,11 @@ class Game {
             // Get the clicked point on the ground
             const point = intersects[0].point;
             
-            // Set the target position (keeping the same y height)
-            this.targetPosition.set(point.x, 1, point.z);
+            // Set the target position (keeping the same y height for sprite)
+            this.targetPosition.set(point.x, 1.5, point.z);
             this.isMoving = true;
+            
+            console.log("Moving to:", point);
         }
     }
 
@@ -155,13 +204,15 @@ class Game {
         // Update controls
         this.controls.update();
         
+        // Ensure the sprite always faces the camera (already handled by THREE.Sprite)
+        
         // Render scene
         this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Initialize the game once the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize the game when the page loads
+window.addEventListener('load', () => {
+    console.log("Page loaded, initializing game");
     new Game();
 });
-
