@@ -14,7 +14,7 @@ class RunescapeClassicGame {
         this.chunkSize = 4; // Size of a single tile
         this.chunksPerDimension = 5; // How many chunks to render in each direction
         this.loadedChunks = new Map(); // Map to track loaded chunks by coordinates
-        this.visibleDistance = 100; // Increased from 50 to improve render distance
+        this.visibleDistance = 120; // Increased from 50 to ensure larger render distance
         
         // Camera controls
         this.cameraRotation = 0; // Current rotation angle
@@ -24,7 +24,8 @@ class RunescapeClassicGame {
         this.minCameraAngle = Math.PI/6; // Minimum angle (more horizontal view)
         this.maxCameraAngle = Math.PI/3; // Maximum angle (more top-down view)
         this.minZoom = 15; // Minimum zoom level (closest to character)
-        this.maxZoom = 60; // Increased from 40 to allow zooming out further
+        this.maxZoom = 40; // Maximum zoom level (furthest from character)
+        this.keysPressed = {};    // Track keys currently pressed
         
         // Initialize game systems
         this.setupRenderer();
@@ -239,8 +240,9 @@ class RunescapeClassicGame {
         const centerChunkX = Math.floor(centerPosition.x / (this.chunkSize * this.chunksPerDimension));
         const centerChunkZ = Math.floor(centerPosition.z / (this.chunkSize * this.chunksPerDimension));
         
-        // Calculate view distance in chunks - increased multiplier for more chunks
-        const viewDistanceInChunks = Math.ceil(this.visibleDistance / (this.chunkSize * this.chunksPerDimension)) + 2;
+        // Calculate view distance in chunks - adding buffer based on camera distance
+        const cameraBuffer = this.cameraDistance / 10; // Add additional buffer based on zoom level
+        const viewDistanceInChunks = Math.ceil((this.visibleDistance + cameraBuffer) / (this.chunkSize * this.chunksPerDimension));
         
         // Track which chunks should be visible
         const visibleChunkKeys = new Set();
@@ -516,6 +518,9 @@ class RunescapeClassicGame {
         this.camera.top = zoom;
         this.camera.bottom = -zoom;
         this.camera.updateProjectionMatrix();
+        
+        // Update visible chunks when camera changes significantly
+        this.updateVisibleChunks(targetPos);
     }
 
     animate() {
