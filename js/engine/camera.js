@@ -65,9 +65,18 @@ export class CameraManager {
             targetPos = new THREE.Vector3(0, 0, 0);
         }
         
+        // Adjust camera angle slightly when at extreme zoom levels to prevent culling
+        let adjustedCameraAngle = this.cameraAngle;
+        if (this.cameraDistance > this.maxZoom * 0.7) {
+            // Gradually increase angle as we approach max zoom
+            const zoomRatio = (this.cameraDistance - this.maxZoom * 0.7) / (this.maxZoom * 0.3);
+            const angleAdjustment = zoomRatio * 0.05; // Small additional tilt
+            adjustedCameraAngle += angleAdjustment;
+        }
+        
         // Calculate camera position based on rotation angle and distance
         const cameraX = targetPos.x + this.cameraDistance * Math.sin(this.cameraRotation);
-        const cameraY = this.cameraDistance * Math.sin(this.cameraAngle);
+        const cameraY = this.cameraDistance * Math.sin(adjustedCameraAngle);
         const cameraZ = targetPos.z + this.cameraDistance * Math.cos(this.cameraRotation);
         
         // Update camera position
@@ -75,12 +84,20 @@ export class CameraManager {
         this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
         
         // Adjust orthographic camera zoom based on distance
-        const zoom = 15 * (25 / this.cameraDistance);
+        // Add a scaling factor that increases as we zoom out to prevent culling
+        const baseZoom = 15;
+        const zoomFactor = 25 / this.cameraDistance;
+        const scalingFactor = 1 + (this.cameraDistance - this.minZoom) / (this.maxZoom - this.minZoom) * 0.4;
+        const zoom = baseZoom * zoomFactor * scalingFactor;
+        
         const aspectRatio = window.innerWidth / window.innerHeight;
         this.camera.left = -zoom * aspectRatio;
         this.camera.right = zoom * aspectRatio;
         this.camera.top = zoom;
         this.camera.bottom = -zoom;
+        
+        // Increase far plane as we zoom out to ensure nothing gets culled
+        this.camera.far = Math.max(1000, this.cameraDistance * 20);
         this.camera.updateProjectionMatrix();
     }
 }
