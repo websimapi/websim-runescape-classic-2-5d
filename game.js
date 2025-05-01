@@ -510,12 +510,15 @@ class RunescapeClassicGame {
         this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
         
         // Adjust orthographic camera zoom based on distance
-        const zoom = 15 * (25 / this.cameraDistance);
+        // Use a larger zoom factor to prevent culling at edges
+        const zoom = 15 * (25 / this.cameraDistance) * 1.5;
         const aspectRatio = window.innerWidth / window.innerHeight;
         this.camera.left = -zoom * aspectRatio;
         this.camera.right = zoom * aspectRatio;
         this.camera.top = zoom;
         this.camera.bottom = -zoom;
+        // Increase the far clipping plane for better visibility at distance
+        this.camera.far = 2000;
         this.camera.updateProjectionMatrix();
     }
 
