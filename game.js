@@ -15,6 +15,8 @@ class RunescapeClassicGame {
         this.cameraDistance = 25; // Distance from center
         this.cameraHeight = 25;   // Height of camera
         this.cameraAngle = Math.PI/4; // Vertical camera angle in radians
+        this.minCameraAngle = Math.PI/6; // Minimum angle (more horizontal view)
+        this.maxCameraAngle = Math.PI/3; // Maximum angle (more top-down view)
         this.keysPressed = {};    // Track keys currently pressed
         
         // Initialize game systems
@@ -235,28 +237,27 @@ class RunescapeClassicGame {
         if (!this.gameInitialized) return;
 
         const rotationSpeed = 1.5 * deltaTime; // Rotation speed in radians per second
-        const panSpeed = 10 * deltaTime; // Pan speed in units per second
         const angleSpeed = 0.5 * deltaTime; // Angle change speed in radians per second
 
         // Rotate camera left/right
         if (this.keysPressed['ArrowLeft']) {
-            this.cameraRotation -= rotationSpeed;
+            this.cameraRotation -= rotationSpeed; // Rotate left
             this.updateCameraPosition();
         }
         if (this.keysPressed['ArrowRight']) {
-            this.cameraRotation += rotationSpeed;
+            this.cameraRotation += rotationSpeed; // Rotate right
             this.updateCameraPosition();
         }
 
         // Adjust camera vertical angle
         if (this.keysPressed['ArrowUp']) {
-            // Lower angle (look more from above)
-            this.cameraAngle = Math.max(Math.PI/8, this.cameraAngle - angleSpeed);
+            // Look more from above (increase angle)
+            this.cameraAngle = Math.min(this.maxCameraAngle, this.cameraAngle + angleSpeed);
             this.updateCameraPosition();
         }
         if (this.keysPressed['ArrowDown']) {
-            // Higher angle (look more level)
-            this.cameraAngle = Math.min(Math.PI/6, this.cameraAngle + angleSpeed);
+            // Look more level (decrease angle, but not too low to prevent seeing under terrain)
+            this.cameraAngle = Math.max(this.minCameraAngle, this.cameraAngle - angleSpeed);
             this.updateCameraPosition();
         }
     }
