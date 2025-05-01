@@ -20,6 +20,7 @@ body {
     height: 100%;
     display: block;
     image-rendering: pixelated; /* Maintain pixelated look */
+    cursor: pointer; /* Show pointer cursor to indicate clickable area */
 }
 
 #ui-overlay {

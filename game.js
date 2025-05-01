@@ -17,6 +17,8 @@ class RunescapeClassicGame {
         this.cameraAngle = Math.PI/4; // Vertical camera angle in radians
         this.minCameraAngle = Math.PI/6; // Minimum angle (more horizontal view)
         this.maxCameraAngle = Math.PI/3; // Maximum angle (more top-down view)
+        this.minZoom = 15; // Minimum zoom level (closest to character)
+        this.maxZoom = 40; // Maximum zoom level (furthest from character)
         this.keysPressed = {};    // Track keys currently pressed
         
         // Initialize game systems
@@ -219,9 +221,26 @@ class RunescapeClassicGame {
         window.addEventListener('keydown', (event) => this.handleKeyDown(event));
         window.addEventListener('keyup', (event) => this.handleKeyUp(event));
         
+        // Add mouse wheel for zooming
+        window.addEventListener('wheel', (event) => this.handleMouseWheel(event));
+        
         // Mouse cursor handling for interaction
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
+    }
+
+    handleMouseWheel(event) {
+        // Determine scroll direction
+        const scrollAmount = event.deltaY * 0.01;
+        
+        // Adjust camera distance (zoom)
+        this.cameraDistance = Math.max(
+            this.minZoom, 
+            Math.min(this.maxZoom, this.cameraDistance + scrollAmount)
+        );
+        
+        // Update camera position with new distance
+        this.updateCameraPosition();
     }
 
     handleKeyDown(event) {
@@ -386,6 +405,15 @@ class RunescapeClassicGame {
         // Update camera position
         this.camera.position.set(cameraX, cameraY, cameraZ);
         this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
+        
+        // Adjust orthographic camera zoom based on distance
+        const zoom = 15 * (25 / this.cameraDistance);
+        const aspectRatio = window.innerWidth / window.innerHeight;
+        this.camera.left = -zoom * aspectRatio;
+        this.camera.right = zoom * aspectRatio;
+        this.camera.top = zoom;
+        this.camera.bottom = -zoom;
+        this.camera.updateProjectionMatrix();
     }
 
     animate() {
