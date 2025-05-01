@@ -13,6 +13,7 @@ body {
     width: 100vw;
     overflow: hidden;
     font-family: 'Arial', sans-serif;
+    color: #fff;
 }
 
 #gameCanvas {

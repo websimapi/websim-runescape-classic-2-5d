@@ -10,6 +10,12 @@ class RunescapeClassicGame {
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         this.gameInitialized = false;
         
+        // World generation settings
+        this.chunkSize = 4; // Size of a single tile
+        this.chunksPerDimension = 5; // How many chunks to render in each direction
+        this.loadedChunks = new Map(); // Map to track loaded chunks by coordinates
+        this.visibleDistance = 50; // Distance at which chunks are visible
+        
         // Camera controls
         this.cameraRotation = 0; // Current rotation angle
         this.cameraDistance = 25; // Distance from center
@@ -109,18 +115,37 @@ class RunescapeClassicGame {
     }
 
     createWorld() {
-        // Create ground tiles (a grid of flat squares rather than a single plane)
-        const worldSize = 20;
-        const tileSize = 4;
-        
+        // Instead of creating a fixed world, we'll initialize the world manager
         this.tiles = [];
+        this.worldObjects = []; // Track all objects in the world
         
-        for (let x = -worldSize/2; x < worldSize/2; x++) {
-            for (let z = -worldSize/2; z < worldSize/2; z++) {
-                // Create a simple tile geometry
-                const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
+        // Generate initial chunks around origin
+        this.updateVisibleChunks(new THREE.Vector3(0, 0, 0));
+    }
+    
+    getChunkKey(x, z) {
+        // Convert world coordinates to chunk coordinates and create a unique string key
+        const chunkX = Math.floor(x / (this.chunkSize * this.chunksPerDimension));
+        const chunkZ = Math.floor(z / (this.chunkSize * this.chunksPerDimension));
+        return `${chunkX},${chunkZ}`;
+    }
+    
+    generateChunk(chunkX, chunkZ) {
+        // Create a chunk of terrain at the specified chunk coordinates
+        const chunkGroup = new THREE.Group();
+        const startX = chunkX * this.chunkSize * this.chunksPerDimension;
+        const startZ = chunkZ * this.chunkSize * this.chunksPerDimension;
+        
+        // Create the grid of tiles for this chunk
+        for (let x = 0; x < this.chunksPerDimension; x++) {
+            for (let z = 0; z < this.chunksPerDimension; z++) {
+                const worldX = startX + x * this.chunkSize;
+                const worldZ = startZ + z * this.chunkSize;
                 
-                // Create material with flat shading and the grass texture
+                // Create tile geometry
+                const tileGeometry = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize);
+                
+                // Create material with grass texture
                 const tileMaterial = new THREE.MeshLambertMaterial({
                     map: this.grassTexture,
                     flatShading: true
@@ -130,56 +155,131 @@ class RunescapeClassicGame {
                 const tile = new THREE.Mesh(tileGeometry, tileMaterial);
                 
                 // Position and rotate
-                tile.position.set(x * tileSize, 0, z * tileSize);
+                tile.position.set(worldX, 0, worldZ);
                 tile.rotation.x = -Math.PI / 2; // Lay flat
                 
-                // Add to scene and tracking array
-                this.scene.add(tile);
+                // Add to chunk group and tracking array
+                chunkGroup.add(tile);
                 this.tiles.push(tile);
             }
         }
         
-        // Add some simple blocky objects to the scene
-        this.addBlockyObjects();
+        // Add some random decorations to the chunk (trees and rocks)
+        this.addDecorationsToChunk(chunkGroup, startX, startZ);
+        
+        // Add the chunk to the scene
+        this.scene.add(chunkGroup);
+        
+        return chunkGroup;
     }
     
-    addBlockyObjects() {
-        // Create some simple blocky objects in the classic RS style (flat-shaded, no textures)
-        const colors = [0x964B00, 0x7B3F00, 0x5D2E00]; // Brown shades
+    addDecorationsToChunk(chunkGroup, startX, startZ) {
+        // Create pseudo-random decorations for this chunk
+        // Use chunk coordinates as seed for deterministic random generation
+        const chunkSeed = startX * 1000 + startZ;
+        const random = (offset = 0) => {
+            const x = Math.sin(chunkSeed + offset) * 10000;
+            return x - Math.floor(x);
+        };
         
-        // Create a blocky tree
-        for (let i = 0; i < 5; i++) {
-            const x = Math.random() * 40 - 20;
-            const z = Math.random() * 40 - 20;
+        const chunkSize = this.chunkSize * this.chunksPerDimension;
+        const treesCount = Math.floor(random() * 3) + 1; // 1-3 trees per chunk
+        const rocksCount = Math.floor(random(1) * 4) + 1; // 1-4 rocks per chunk
+        
+        // Colors for objects
+        const treeColors = [0x006400, 0x008000, 0x228B22]; // Green shades
+        const trunkColors = [0x964B00, 0x7B3F00, 0x5D2E00]; // Brown shades
+        
+        // Add trees
+        for (let i = 0; i < treesCount; i++) {
+            const x = startX + random(i * 2) * chunkSize;
+            const z = startZ + random(i * 2 + 1) * chunkSize;
             
             // Tree trunk
             const trunkGeometry = new THREE.BoxGeometry(1, 3, 1);
-            const trunkMaterial = new THREE.MeshLambertMaterial({ color: colors[1], flatShading: true });
+            const trunkMaterial = new THREE.MeshLambertMaterial({ 
+                color: trunkColors[Math.floor(random(i * 3) * 3)], 
+                flatShading: true 
+            });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
             trunk.position.set(x, 1.5, z);
-            this.scene.add(trunk);
+            chunkGroup.add(trunk);
+            this.worldObjects.push(trunk);
             
             // Tree top (cube)
             const topGeometry = new THREE.BoxGeometry(3, 3, 3);
-            const topMaterial = new THREE.MeshLambertMaterial({ color: 0x006400, flatShading: true });
+            const topMaterial = new THREE.MeshLambertMaterial({ 
+                color: treeColors[Math.floor(random(i * 4) * 3)], 
+                flatShading: true 
+            });
             const top = new THREE.Mesh(topGeometry, topMaterial);
             top.position.set(x, 4.5, z);
-            this.scene.add(top);
+            chunkGroup.add(top);
+            this.worldObjects.push(top);
         }
         
-        // Create a blocky rock
-        for (let i = 0; i < 7; i++) {
-            const x = Math.random() * 40 - 20;
-            const z = Math.random() * 40 - 20;
+        // Add rocks
+        for (let i = 0; i < rocksCount; i++) {
+            const x = startX + random(i * 5 + 10) * chunkSize;
+            const z = startZ + random(i * 5 + 11) * chunkSize;
             
             const rockGeometry = new THREE.BoxGeometry(2, 1.5, 2);
-            const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x808080, flatShading: true });
+            const rockMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x808080, 
+                flatShading: true 
+            });
             const rock = new THREE.Mesh(rockGeometry, rockMaterial);
             rock.position.set(x, 0.75, z);
-            this.scene.add(rock);
+            chunkGroup.add(rock);
+            this.worldObjects.push(rock);
         }
     }
-
+    
+    updateVisibleChunks(centerPosition) {
+        // Get the player's chunk coordinates
+        const centerChunkX = Math.floor(centerPosition.x / (this.chunkSize * this.chunksPerDimension));
+        const centerChunkZ = Math.floor(centerPosition.z / (this.chunkSize * this.chunksPerDimension));
+        
+        // Calculate view distance in chunks
+        const viewDistanceInChunks = Math.ceil(this.visibleDistance / (this.chunkSize * this.chunksPerDimension));
+        
+        // Track which chunks should be visible
+        const visibleChunkKeys = new Set();
+        
+        // Generate or make visible all chunks within view distance
+        for (let xOffset = -viewDistanceInChunks; xOffset <= viewDistanceInChunks; xOffset++) {
+            for (let zOffset = -viewDistanceInChunks; zOffset <= viewDistanceInChunks; zOffset++) {
+                const chunkX = centerChunkX + xOffset;
+                const chunkZ = centerChunkZ + zOffset;
+                const chunkKey = `${chunkX},${chunkZ}`;
+                
+                visibleChunkKeys.add(chunkKey);
+                
+                // If this chunk isn't loaded yet, generate it
+                if (!this.loadedChunks.has(chunkKey)) {
+                    const chunk = this.generateChunk(chunkX, chunkZ);
+                    this.loadedChunks.set(chunkKey, chunk);
+                }
+            }
+        }
+        
+        // Remove chunks that are too far away
+        for (const [key, chunk] of this.loadedChunks.entries()) {
+            if (!visibleChunkKeys.has(key)) {
+                this.scene.remove(chunk);
+                this.loadedChunks.delete(key);
+                
+                // Remove the tiles from this chunk from the tiles array
+                this.tiles = this.tiles.filter(tile => !chunk.children.includes(tile));
+            }
+        }
+    }
+    
+    addBlockyObjects() {
+        // This is no longer needed as objects are created with chunks
+        // The function remains but is empty for backward compatibility
+    }
+    
     createPlayer() {
         // Create a billboard-style sprite for the player (2D in 3D world)
         const spriteMaterial = new THREE.SpriteMaterial({ 
@@ -386,6 +486,9 @@ class RunescapeClassicGame {
         this.playerSprite.position.add(direction.multiplyScalar(moveAmount));
         this.playerShadow.position.x = this.playerSprite.position.x;
         this.playerShadow.position.z = this.playerSprite.position.z;
+        
+        // Update visible chunks as player moves
+        this.updateVisibleChunks(this.playerSprite.position);
         
         // Update camera to follow player (maintaining isometric view)
         this.updateCameraPosition();
