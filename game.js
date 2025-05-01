@@ -8,22 +8,25 @@ class RunescapeClassicGame {
         this.moveQueue = [];
         this.isProcessingActions = false;
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
+        this.gameInitialized = false;
         
         // Initialize game systems
         this.setupRenderer();
         this.setupScene();
         this.setupCamera();
         this.setupLights();
+        
+        // Load assets first, then initialize game objects and start loop
         this.loadAssets().then(() => {
             this.createWorld();
             this.createPlayer();
             this.setupEventListeners();
+            this.gameInitialized = true;
+            this.lastTick = Date.now();
+            // Start game loop only after initialization
+            this.animate();
             console.log("Game fully initialized");
         });
-        
-        // Start game loop
-        this.lastTick = Date.now();
-        this.animate();
     }
 
     setupRenderer() {
@@ -268,8 +271,8 @@ class RunescapeClassicGame {
     }
     
     processActionQueue() {
-        // If already processing or queue is empty, return
-        if (this.isProcessingActions || this.moveQueue.length === 0) return;
+        // Safety check - only process if game is initialized
+        if (!this.gameInitialized || this.isProcessingActions || this.moveQueue.length === 0) return;
         
         // Get next action
         const nextAction = this.moveQueue.shift();
@@ -288,6 +291,8 @@ class RunescapeClassicGame {
     }
     
     updatePlayerMovement(deltaTime) {
+        // Safety check - only update if player exists and is moving
+        if (!this.gameInitialized || !this.playerSprite || !this.playerShadow) return;
         if (!this.playerState.isMoving || !this.playerState.targetPosition) return;
         
         // Calculate direction vector
@@ -318,6 +323,9 @@ class RunescapeClassicGame {
     }
     
     updateCameraPosition() {
+        // Safety check - only update if player exists
+        if (!this.gameInitialized || !this.playerSprite) return;
+        
         // Get player position
         const targetPos = new THREE.Vector3(
             this.playerSprite.position.x,
