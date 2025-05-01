@@ -14,6 +14,7 @@ class RunescapeClassicGame {
         this.cameraRotation = 0; // Current rotation angle
         this.cameraDistance = 25; // Distance from center
         this.cameraHeight = 25;   // Height of camera
+        this.cameraAngle = Math.PI/4; // Vertical camera angle in radians
         this.keysPressed = {};    // Track keys currently pressed
         
         // Initialize game systems
@@ -235,6 +236,7 @@ class RunescapeClassicGame {
 
         const rotationSpeed = 1.5 * deltaTime; // Rotation speed in radians per second
         const panSpeed = 10 * deltaTime; // Pan speed in units per second
+        const angleSpeed = 0.5 * deltaTime; // Angle change speed in radians per second
 
         // Rotate camera left/right
         if (this.keysPressed['ArrowLeft']) {
@@ -246,15 +248,15 @@ class RunescapeClassicGame {
             this.updateCameraPosition();
         }
 
-        // Move camera in/out
+        // Adjust camera vertical angle
         if (this.keysPressed['ArrowUp']) {
-            this.cameraDistance = Math.max(15, this.cameraDistance - panSpeed);
-            this.cameraHeight = Math.max(15, this.cameraHeight - panSpeed);
+            // Lower angle (look more from above)
+            this.cameraAngle = Math.max(Math.PI/8, this.cameraAngle - angleSpeed);
             this.updateCameraPosition();
         }
         if (this.keysPressed['ArrowDown']) {
-            this.cameraDistance = Math.min(40, this.cameraDistance + panSpeed);
-            this.cameraHeight = Math.min(40, this.cameraHeight + panSpeed);
+            // Higher angle (look more level)
+            this.cameraAngle = Math.min(Math.PI/3, this.cameraAngle + angleSpeed);
             this.updateCameraPosition();
         }
     }
@@ -377,11 +379,12 @@ class RunescapeClassicGame {
         
         // Calculate camera position based on rotation angle and distance
         const cameraX = targetPos.x + this.cameraDistance * Math.sin(this.cameraRotation);
+        const cameraY = this.cameraDistance * Math.sin(this.cameraAngle);
         const cameraZ = targetPos.z + this.cameraDistance * Math.cos(this.cameraRotation);
         
         // Update camera position
-        this.camera.position.set(cameraX, this.cameraHeight, cameraZ);
-        this.camera.lookAt(targetPos);
+        this.camera.position.set(cameraX, cameraY, cameraZ);
+        this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
     }
 
     animate() {

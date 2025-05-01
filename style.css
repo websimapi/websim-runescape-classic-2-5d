@@ -53,6 +53,7 @@ body {
     opacity: 1;
     animation: fadeOut 3s forwards;
     animation-delay: 8s;
+    max-width: 300px;
 }
 
 @keyframes fadeOut {
