@@ -4,49 +4,75 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
-        this.initializeScene();
+        
+        // Initialize the core components immediately
+        this.setupRenderer();
+        this.setupScene();
+        this.setupCamera();
+        this.setupLights();
+        this.setupControls();
+        
+        // Start animation loop right away - don't wait for textures
+        this.animate();
+        
+        // Load textures and create world/player after animation has started
         this.loadTextures().then(() => {
             this.createWorld();
             this.createPlayer();
             this.setupEventListeners();
-            this.animate();
-            console.log("Game initialized successfully");
+            console.log("Game fully initialized with textures");
         }).catch(error => {
             console.error("Error loading textures:", error);
+            // Create fallback objects if textures fail
+            this.createFallbackWorld();
+            this.createFallbackPlayer();
+            this.setupEventListeners();
         });
     }
 
-    initializeScene() {
-        // Set up renderer
+    setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: this.canvas, 
-            antialias: true,
-            alpha: true
+            antialias: true
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setClearColor(0x87CEEB); // Sky blue background
-
-        // Set up scene
-        this.scene = new THREE.Scene();
         
-        // Set up camera (isometric-ish view)
+        console.log("Renderer initialized");
+    }
+
+    setupScene() {
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x87CEEB); // Ensure background is set on the scene too
+        console.log("Scene initialized");
+    }
+
+    setupCamera() {
         this.camera = new THREE.PerspectiveCamera(
             60, window.innerWidth / window.innerHeight, 0.1, 1000
         );
-        this.camera.position.set(5, 8, 15);
+        this.camera.position.set(0, 10, 20); // Position further back and higher up
         this.camera.lookAt(0, 0, 0);
-        
-        // Add some light
+        console.log("Camera initialized");
+    }
+
+    setupLights() {
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
         
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
         directionalLight.position.set(10, 20, 10);
-        directionalLight.castShadow = true;
         this.scene.add(directionalLight);
         
-        // Add controls
+        // Add a hemisphere light for better outdoor lighting
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        this.scene.add(hemisphereLight);
+        
+        console.log("Lights initialized");
+    }
+
+    setupControls() {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
@@ -54,6 +80,7 @@ class Game {
         this.controls.maxPolarAngle = Math.PI / 2.5;
         this.controls.minDistance = 5;
         this.controls.maxDistance = 50;
+        console.log("Controls initialized");
     }
 
     async loadTextures() {
@@ -64,26 +91,59 @@ class Game {
             return new Promise((resolve, reject) => {
                 textureLoader.load(
                     url,
-                    (texture) => resolve(texture),
-                    undefined,
-                    (error) => reject(error)
+                    (texture) => {
+                        console.log(`Texture loaded: ${url}`);
+                        resolve(texture);
+                    },
+                    (progressEvent) => {
+                        console.log(`Loading texture ${url}: ${progressEvent}`);
+                    },
+                    (error) => {
+                        console.error(`Error loading texture ${url}:`, error);
+                        reject(error);
+                    }
                 );
             });
         };
         
         try {
-            this.grassTexture = await loadTexture('grass.png');
+            // Load the grass texture
+            this.grassTexture = await loadTexture('./grass.png');
             this.grassTexture.wrapS = THREE.RepeatWrapping;
             this.grassTexture.wrapT = THREE.RepeatWrapping;
             this.grassTexture.repeat.set(100, 100);
             
-            this.playerTexture = await loadTexture('character.png');
-            console.log("Textures loaded successfully");
+            // Load the player texture
+            this.playerTexture = await loadTexture('./character.png');
+            
+            console.log("All textures loaded successfully");
             return true;
         } catch (error) {
-            console.error("Error loading textures:", error);
+            console.error("Texture loading failed:", error);
             throw error;
         }
+    }
+
+    createFallbackWorld() {
+        // Create a ground plane with a basic material
+        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x33aa33, // Green color
+            roughness: 1.0,
+            metalness: 0.0
+        });
+        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        this.ground.rotation.x = -Math.PI / 2; // Rotate to be flat
+        this.ground.position.y = 0;
+        this.scene.add(this.ground);
+        
+        // Add a grid helper for reference
+        const grid = new THREE.GridHelper(100, 100, 0x000000, 0x000000);
+        grid.material.opacity = 0.2;
+        grid.material.transparent = true;
+        this.scene.add(grid);
+        
+        console.log("Fallback world created");
     }
 
     createWorld() {
@@ -99,11 +159,29 @@ class Game {
         this.ground.position.y = 0;
         this.scene.add(this.ground);
         
-        // Add a simple grid for reference
-        const grid = new THREE.GridHelper(20, 20, 0x000000, 0x000000);
+        // Add a grid helper for reference
+        const grid = new THREE.GridHelper(100, 100, 0x000000, 0x000000);
         grid.material.opacity = 0.2;
         grid.material.transparent = true;
         this.scene.add(grid);
+        
+        console.log("World created with textured ground");
+    }
+
+    createFallbackPlayer() {
+        // Create a simple colored cube as a fallback player
+        const geometry = new THREE.BoxGeometry(1, 3, 1);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.playerObject = new THREE.Mesh(geometry, material);
+        this.playerObject.position.set(0, 1.5, 0);
+        this.scene.add(this.playerObject);
+        
+        // Player movement properties
+        this.targetPosition = new THREE.Vector3(0, 1.5, 0);
+        this.isMoving = false;
+        this.moveSpeed = 0.08;
+        
+        console.log("Fallback player created");
     }
 
     createPlayer() {
@@ -118,19 +196,21 @@ class Game {
         this.playerSprite.position.set(0, 1.5, 0); // Position higher above ground
         this.scene.add(this.playerSprite);
         
-        // Debug object to verify scene rendering
-        const debugSphere = new THREE.Mesh(
-            new THREE.SphereGeometry(0.2, 16, 16),
-            new THREE.MeshBasicMaterial({ color: 0xff0000 })
-        );
-        debugSphere.position.copy(this.playerSprite.position);
-        debugSphere.position.y -= 0.5;  // Just below the sprite
-        this.scene.add(debugSphere);
+        // Add a marker below the player
+        const markerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.playerMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+        this.playerMarker.position.set(0, 0.05, 0);
+        this.scene.add(this.playerMarker);
         
-        // Player movement
+        // Player movement properties
         this.targetPosition = new THREE.Vector3(0, 1.5, 0);
         this.isMoving = false;
         this.moveSpeed = 0.08;
+        
+        this.playerObject = this.playerSprite; // Reference for movement
+        
+        console.log("Player sprite created");
     }
 
     setupEventListeners() {
@@ -141,6 +221,8 @@ class Game {
         
         // Click to move
         this.canvas.addEventListener('click', (event) => this.onCanvasClick(event));
+        
+        console.log("Event listeners set up");
     }
 
     onWindowResize() {
@@ -173,30 +255,48 @@ class Game {
     }
 
     movePlayer() {
-        if (this.isMoving) {
-            // Calculate direction and distance
-            const direction = new THREE.Vector3().subVectors(this.targetPosition, this.playerSprite.position);
-            const distance = direction.length();
-            
-            // If player is close enough to target, stop moving
-            if (distance < 0.1) {
-                this.isMoving = false;
-                return;
-            }
-            
-            // Normalize and scale by speed
-            direction.normalize().multiplyScalar(this.moveSpeed);
-            
-            // Move player
-            this.playerSprite.position.add(direction);
-            
-            // Make camera follow player
-            this.controls.target.copy(this.playerSprite.position);
+        if (!this.isMoving || !this.playerObject) return;
+        
+        // Calculate direction and distance
+        const direction = new THREE.Vector3().subVectors(this.targetPosition, this.playerObject.position);
+        const distance = direction.length();
+        
+        // If player is close enough to target, stop moving
+        if (distance < 0.1) {
+            this.isMoving = false;
+            return;
         }
+        
+        // Normalize and scale by speed
+        direction.normalize().multiplyScalar(this.moveSpeed);
+        
+        // Move player
+        this.playerObject.position.add(direction);
+        
+        // Update marker position if it exists
+        if (this.playerMarker) {
+            this.playerMarker.position.x = this.playerObject.position.x;
+            this.playerMarker.position.z = this.playerObject.position.z;
+        }
+        
+        // Make camera follow player
+        this.controls.target.copy(this.playerObject.position);
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
+        
+        // Add a debug cube if scene is empty (only during initialization)
+        if (!this.debugCubeAdded && !this.ground) {
+            const debugCube = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 2, 2),
+                new THREE.MeshBasicMaterial({ color: 0xffff00 })
+            );
+            debugCube.position.set(0, 1, 0);
+            this.scene.add(debugCube);
+            this.debugCubeAdded = true;
+            console.log("Debug cube added to scene");
+        }
         
         // Update player movement
         this.movePlayer();
@@ -204,15 +304,13 @@ class Game {
         // Update controls
         this.controls.update();
         
-        // Ensure the sprite always faces the camera (already handled by THREE.Sprite)
-        
         // Render scene
         this.renderer.render(this.scene, this.camera);
     }
 }
 
 // Initialize the game when the page loads
-window.addEventListener('load', () => {
-    console.log("Page loaded, initializing game");
-    new Game();
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM loaded, initializing game");
+    window.game = new Game(); // Store in window for debugging
 });
