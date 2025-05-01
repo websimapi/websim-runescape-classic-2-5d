@@ -14,7 +14,7 @@ class RunescapeClassicGame {
         this.chunkSize = 4; // Size of a single tile
         this.chunksPerDimension = 5; // How many chunks to render in each direction
         this.loadedChunks = new Map(); // Map to track loaded chunks by coordinates
-        this.visibleDistance = 50; // Distance at which chunks are visible
+        this.visibleDistance = 120; // Increased from 50 to ensure larger render distance
         
         // Camera controls
         this.cameraRotation = 0; // Current rotation angle
@@ -240,8 +240,9 @@ class RunescapeClassicGame {
         const centerChunkX = Math.floor(centerPosition.x / (this.chunkSize * this.chunksPerDimension));
         const centerChunkZ = Math.floor(centerPosition.z / (this.chunkSize * this.chunksPerDimension));
         
-        // Calculate view distance in chunks
-        const viewDistanceInChunks = Math.ceil(this.visibleDistance / (this.chunkSize * this.chunksPerDimension));
+        // Calculate view distance in chunks - adding buffer based on camera distance
+        const cameraBuffer = this.cameraDistance / 10; // Add additional buffer based on zoom level
+        const viewDistanceInChunks = Math.ceil((this.visibleDistance + cameraBuffer) / (this.chunkSize * this.chunksPerDimension));
         
         // Track which chunks should be visible
         const visibleChunkKeys = new Set();
@@ -510,16 +511,16 @@ class RunescapeClassicGame {
         this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
         
         // Adjust orthographic camera zoom based on distance
-        // Use a larger zoom factor to prevent culling at edges
-        const zoom = 15 * (25 / this.cameraDistance) * 1.5;
+        const zoom = 15 * (25 / this.cameraDistance);
         const aspectRatio = window.innerWidth / window.innerHeight;
         this.camera.left = -zoom * aspectRatio;
         this.camera.right = zoom * aspectRatio;
         this.camera.top = zoom;
         this.camera.bottom = -zoom;
-        // Increase the far clipping plane for better visibility at distance
-        this.camera.far = 2000;
         this.camera.updateProjectionMatrix();
+        
+        // Update visible chunks when camera changes significantly
+        this.updateVisibleChunks(targetPos);
     }
 
     animate() {
