@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { setupRenderer } from './renderer.js';
-import { setupCamera, updateCameraPosition } from './camera.js';
-import { createWorld, updateVisibleChunks } from './world.js';
-import { createPlayer, updatePlayerMovement } from './player.js';
-import { setupEventListeners, processKeyboardInput } from './input.js';
+import { setupRenderer } from './engine/renderer.js';
+import { CameraManager } from './engine/camera.js';
+import { WorldManager } from './world/world.js';
+import { PlayerManager } from './entity/player.js';
+import { InputHandler } from './input/controls.js';
 
 class RunescapeClassicGame {
     constructor() {
@@ -14,45 +14,33 @@ class RunescapeClassicGame {
         this.isProcessingActions = false;
         this.tickRate = 600; // 0.6 seconds per tick, classic RS timing
         this.gameInitialized = false;
-        
-        // World generation settings
-        this.chunkSize = 4; // Size of a single tile
-        this.chunksPerDimension = 5; // How many chunks to render in each direction
-        this.loadedChunks = new Map(); // Map to track loaded chunks by coordinates
-        this.visibleDistance = 50; // Distance at which chunks are visible
-        
-        // Camera controls
-        this.cameraRotation = 0; // Current rotation angle
-        this.cameraDistance = 25; // Distance from center
-        this.cameraHeight = 25;   // Height of camera
-        this.cameraAngle = Math.PI/4; // Vertical camera angle in radians
-        this.minCameraAngle = Math.PI/6; // Minimum angle (more horizontal view)
-        this.maxCameraAngle = Math.PI/3; // Maximum angle (more top-down view)
-        this.minZoom = 15; // Minimum zoom level (closest to character)
-        this.maxZoom = 40; // Maximum zoom level (furthest from character)
-        this.keysPressed = {};    // Track keys currently pressed
-        
-        // Initialize game systems
+        this.lastTick = Date.now();
+
+        // Initialize core systems
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x87CEEB);
         
         this.renderer = setupRenderer(this.canvas);
-        this.camera = setupCamera(window.innerWidth / window.innerHeight);
-        
         this.setupLights();
+        
+        // Initialize managers
+        this.cameraManager = new CameraManager(this.canvas);
+        this.camera = this.cameraManager.camera;
         
         // Load assets first, then initialize game objects and start loop
         this.loadAssets().then(() => {
-            this.tiles = [];
-            this.worldObjects = []; // Track all objects in the world
-            
-            createWorld(this);
-            createPlayer(this);
-            setupEventListeners(this);
+            this.worldManager = new WorldManager(this.scene, this.grassTexture);
+            this.playerManager = new PlayerManager(this.scene, this.playerTexture);
+            this.inputHandler = new InputHandler(
+                this.canvas, 
+                this.camera, 
+                this.cameraManager,
+                this.worldManager,
+                this.playerManager,
+                this.moveQueue
+            );
             
             this.gameInitialized = true;
-            this.lastTick = Date.now();
-            
             // Start game loop only after initialization
             this.animate();
             console.log("Game fully initialized");
@@ -60,7 +48,7 @@ class RunescapeClassicGame {
     }
 
     setupLights() {
-        // Simple directional light for flat shading
+        // Simple lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
         
@@ -98,7 +86,7 @@ class RunescapeClassicGame {
             return false;
         }
     }
-    
+
     processActionQueue() {
         // Safety check - only process if game is initialized
         if (!this.gameInitialized || this.isProcessingActions || this.moveQueue.length === 0) return;
@@ -109,8 +97,7 @@ class RunescapeClassicGame {
         
         if (nextAction.type === 'move') {
             // Set player target position
-            this.playerState.targetPosition = nextAction.target;
-            this.playerState.isMoving = true;
+            this.playerManager.setTargetPosition(nextAction.target);
         }
         
         // In classic RS, actions are processed on ticks, not instantly
@@ -118,7 +105,7 @@ class RunescapeClassicGame {
             this.isProcessingActions = false;
         }, this.tickRate);
     }
-    
+
     animate() {
         requestAnimationFrame(() => this.animate());
         
@@ -132,10 +119,24 @@ class RunescapeClassicGame {
         }
         
         // Process keyboard input for camera control
-        processKeyboardInput(this, deltaTime);
+        if (this.inputHandler) {
+            this.inputHandler.processKeyboardInput(deltaTime);
+        }
         
         // Update player movement
-        updatePlayerMovement(this, deltaTime);
+        if (this.playerManager) {
+            this.playerManager.updatePlayerMovement(deltaTime);
+            
+            // Update visible chunks as player moves
+            if (this.playerManager.isMoving() && this.worldManager) {
+                this.worldManager.updateVisibleChunks(this.playerManager.getPosition());
+            }
+            
+            // Update camera to follow player
+            if (this.cameraManager) {
+                this.cameraManager.updateCameraPosition(this.playerManager.getPosition());
+            }
+        }
         
         // Render the scene
         this.renderer.render(this.scene, this.camera);

@@ -9,6 +9,10 @@ export function setupRenderer(canvas) {
     renderer.setPixelRatio(1); // Force lower pixel ratio for retro look
     renderer.setClearColor(0x87CEEB); // Sky blue background
     
+    // Handle window resizing
+    window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    
     return renderer;
 }
-
