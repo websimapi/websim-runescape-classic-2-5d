@@ -233,7 +233,8 @@ export class ChunkManager {
         // Tent sides (triangular prism shape)
         const tentMaterial = new THREE.MeshLambertMaterial({ 
             color: tentColors[colorIndex], 
-            flatShading: true 
+            flatShading: true,
+            side: THREE.DoubleSide // Ensure both sides render
         });
         
         // Main tent body
@@ -241,52 +242,47 @@ export class ChunkManager {
         const tentDepth = 2.0;
         const tentHeight = 1.8;
         
-        // Front panel (with entrance)
-        const frontGeometry = new THREE.BufferGeometry();
-        const frontVertices = new Float32Array([
-            -tentWidth/2, 0, tentDepth/2,     // bottom left
-            tentWidth/2, 0, tentDepth/2,      // bottom right
-            0, tentHeight, 0                   // top
-        ]);
-        frontGeometry.setAttribute('position', new THREE.BufferAttribute(frontVertices, 3));
-        frontGeometry.computeVertexNormals();
-        const frontTriangle = new THREE.Mesh(frontGeometry, tentMaterial);
-        tentGroup.add(frontTriangle);
+        // Create a complete tent shape using indexed BufferGeometry
+        const tentGeometry = new THREE.BufferGeometry();
         
-        // Back panel
-        const backGeometry = new THREE.BufferGeometry();
-        const backVertices = new Float32Array([
-            -tentWidth/2, 0, -tentDepth/2,    // bottom left
-            tentWidth/2, 0, -tentDepth/2,     // bottom right
-            0, tentHeight, 0                   // top
+        // Define all vertices for the tent (triangular prism shape)
+        const vertices = new Float32Array([
+            // Front triangle
+            -tentWidth/2, 0, tentDepth/2,     // 0: bottom left
+            tentWidth/2, 0, tentDepth/2,      // 1: bottom right
+            0, tentHeight, 0,                 // 2: top center
+            
+            // Back triangle
+            -tentWidth/2, 0, -tentDepth/2,    // 3: bottom left
+            tentWidth/2, 0, -tentDepth/2,     // 4: bottom right
+            // reuse vertex 2 for top
         ]);
-        backGeometry.setAttribute('position', new THREE.BufferAttribute(backVertices, 3));
-        backGeometry.computeVertexNormals();
-        const backTriangle = new THREE.Mesh(backGeometry, tentMaterial);
-        tentGroup.add(backTriangle);
         
-        // Side panels
-        const leftGeometry = new THREE.BufferGeometry();
-        const leftVertices = new Float32Array([
-            -tentWidth/2, 0, tentDepth/2,     // front bottom
-            -tentWidth/2, 0, -tentDepth/2,    // back bottom
-            0, tentHeight, 0                   // top
-        ]);
-        leftGeometry.setAttribute('position', new THREE.BufferAttribute(leftVertices, 3));
-        leftGeometry.computeVertexNormals();
-        const leftPanel = new THREE.Mesh(leftGeometry, tentMaterial);
-        tentGroup.add(leftPanel);
+        // Define indices (to create triangular faces)
+        const indices = [
+            // Front face
+            0, 1, 2,
+            
+            // Back face
+            4, 3, 2,
+            
+            // Left side face
+            0, 2, 3,
+            
+            // Right side face
+            1, 4, 2,
+            
+            // Floor face (optional, as we have a separate floor)
+            0, 3, 4,
+            0, 4, 1
+        ];
         
-        const rightGeometry = new THREE.BufferGeometry();
-        const rightVertices = new Float32Array([
-            tentWidth/2, 0, tentDepth/2,      // front bottom
-            tentWidth/2, 0, -tentDepth/2,     // back bottom
-            0, tentHeight, 0                   // top
-        ]);
-        rightGeometry.setAttribute('position', new THREE.BufferAttribute(rightVertices, 3));
-        rightGeometry.computeVertexNormals();
-        const rightPanel = new THREE.Mesh(rightGeometry, tentMaterial);
-        tentGroup.add(rightPanel);
+        tentGeometry.setIndex(indices);
+        tentGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        tentGeometry.computeVertexNormals();
+        
+        const tentMesh = new THREE.Mesh(tentGeometry, tentMaterial);
+        tentGroup.add(tentMesh);
         
         // Add a floor inside the tent
         const floorGeometry = new THREE.PlaneGeometry(tentWidth - 0.2, tentDepth - 0.2);
@@ -312,12 +308,12 @@ export class ChunkManager {
         const entranceFlap = new THREE.Mesh(entranceGeometry, entranceMaterial);
         
         // Position flap at front of tent, partially open
-        entranceFlap.position.set(0, flapHeight/2, tentDepth/2);
-        entranceFlap.rotation.y = Math.PI/4; // Partially open
+        entranceFlap.position.set(-0.2, flapHeight/2, tentDepth/2 - 0.05); // Slight offset for visibility
+        entranceFlap.rotation.y = Math.PI/6; // Partially open
         tentGroup.add(entranceFlap);
         
         // Add a small flag or banner on top
-        const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4);
+        const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6);
         const poleMaterial = new THREE.MeshLambertMaterial({ 
             color: 0x8B4513, 
             flatShading: true 
