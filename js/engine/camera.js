@@ -31,11 +31,8 @@ export class CameraManager {
         const aspectRatio = window.innerWidth / window.innerHeight;
         
         // Update orthographic camera
-        const zoom = 15 * (25 / this.cameraDistance);
-        this.camera.left = -zoom * aspectRatio;
-        this.camera.right = zoom * aspectRatio;
-        this.camera.top = zoom;
-        this.camera.bottom = -zoom;
+        this.camera.left = -15 * aspectRatio;
+        this.camera.right = 15 * aspectRatio;
         this.camera.updateProjectionMatrix();
     }
     
@@ -70,27 +67,20 @@ export class CameraManager {
         
         // Calculate camera position based on rotation angle and distance
         const cameraX = targetPos.x + this.cameraDistance * Math.sin(this.cameraRotation);
-        const cameraY = this.cameraHeight * Math.sin(this.cameraAngle);
+        const cameraY = this.cameraDistance * Math.sin(this.cameraAngle);
         const cameraZ = targetPos.z + this.cameraDistance * Math.cos(this.cameraRotation);
         
         // Update camera position
         this.camera.position.set(cameraX, cameraY, cameraZ);
         this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
         
-        // Adjust orthographic camera zoom based on distance - scale based on zoom level
-        // The factor needs to be larger when zoomed out to avoid culling
-        const zoomFactor = Math.max(1.0, this.cameraDistance / 25);
-        const zoom = 15 * zoomFactor;
+        // Adjust orthographic camera zoom based on distance
+        const zoom = 15 * (25 / this.cameraDistance);
         const aspectRatio = window.innerWidth / window.innerHeight;
-        
         this.camera.left = -zoom * aspectRatio;
         this.camera.right = zoom * aspectRatio;
         this.camera.top = zoom;
         this.camera.bottom = -zoom;
-        
-        // Increase far plane to prevent distant objects from being culled when zoomed out
-        this.camera.near = 0.1;
-        this.camera.far = 1000 * zoomFactor;
         this.camera.updateProjectionMatrix();
     }
 }
