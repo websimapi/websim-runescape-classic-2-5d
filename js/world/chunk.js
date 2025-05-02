@@ -132,47 +132,96 @@ export class ChunkManager {
         const campsiteGroup = new THREE.Group();
         campsiteGroup.position.set(campsiteX, 0, campsiteZ);
         
-        // Add tents (1-2 tents)
-        const tentsCount = Math.floor(random(60) * 2) + 1;
-        for (let i = 0; i < tentsCount; i++) {
-            this.addTent(
-                campsiteGroup, 
-                random(70 + i) * 3 - 1.5, // x offset in campsite
-                random(80 + i) * 3 - 1.5, // z offset in campsite
-                random(90 + i) // rotation seed
-            );
-        }
-        
-        // Add fire pit in the center
+        // Add fire pit in the center first
         this.addFirePit(campsiteGroup);
+        
+        // Track occupied positions to prevent overlaps
+        const occupiedPositions = [
+            { x: 0, z: 0, radius: 1.2 } // Fire pit position and radius
+        ];
         
         // Add logs around the fire (2-4 logs)
         const logsCount = Math.floor(random(100) * 3) + 2;
         for (let i = 0; i < logsCount; i++) {
-            const angle = (i / logsCount) * Math.PI * 2 + random(110 + i);
-            const distance = 1.5 + random(120 + i) * 0.5;
+            const angle = (i / logsCount) * Math.PI * 2 + random(110 + i) * 0.5;
+            const distance = 2.2 + random(120 + i) * 0.3;
             const logX = Math.cos(angle) * distance;
             const logZ = Math.sin(angle) * distance;
             
             this.addLog(campsiteGroup, logX, logZ, angle + Math.PI/2);
+            
+            // Track the log position
+            occupiedPositions.push({
+                x: logX,
+                z: logZ,
+                radius: 1.0 // Size of the log and some margin
+            });
+        }
+        
+        // Add tents (1-2 tents) in valid positions
+        const tentsCount = Math.floor(random(60) * 2) + 1;
+        let attemptsPerTent = 10; // Maximum placement attempts per tent
+        
+        for (let i = 0; i < tentsCount; i++) {
+            let placed = false;
+            let attempts = 0;
+            
+            while (!placed && attempts < attemptsPerTent) {
+                const angle = random(70 + i * 10 + attempts) * Math.PI * 2;
+                const distance = 3.5 + random(80 + i * 10 + attempts) * 2;
+                const tentX = Math.cos(angle) * distance;
+                const tentZ = Math.sin(angle) * distance;
+                
+                // Check if position is valid (not overlapping with existing objects)
+                let isValid = true;
+                for (const pos of occupiedPositions) {
+                    const dx = tentX - pos.x;
+                    const dz = tentZ - pos.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
+                    if (distance < (pos.radius + 1.8)) { // Tent radius + buffer
+                        isValid = false;
+                        break;
+                    }
+                }
+                
+                if (isValid) {
+                    this.addTent(
+                        campsiteGroup, 
+                        tentX,
+                        tentZ,
+                        random(90 + i) * Math.PI * 2 // rotation
+                    );
+                    
+                    // Track the tent position
+                    occupiedPositions.push({
+                        x: tentX,
+                        z: tentZ,
+                        radius: 1.8 // Size of tent and some margin
+                    });
+                    
+                    placed = true;
+                }
+                
+                attempts++;
+            }
         }
         
         chunkGroup.add(campsiteGroup);
         this.worldObjects.push(campsiteGroup);
     }
     
-    addTent(parent, offsetX, offsetZ, rotationSeed) {
+    addTent(parent, offsetX, offsetZ, rotation) {
         // Tent colors (muted earthy tones typical of RuneScape Classic)
         const tentColors = [0x8B4513, 0xA0522D, 0xCD853F, 0xD2691E];
-        const colorIndex = Math.floor(rotationSeed * 4) % 4;
+        const colorIndex = Math.floor(rotation * 4) % 4;
         
         // Create tent group
         const tentGroup = new THREE.Group();
         tentGroup.position.set(offsetX, 0, offsetZ);
-        tentGroup.rotation.y = rotationSeed * Math.PI * 2; // Random rotation
+        tentGroup.rotation.y = rotation; // Rotation in radians
         
         // Tent base (flat rectangle on ground)
-        const baseGeometry = new THREE.BoxGeometry(2.5, 0.1, 2);
+        const baseGeometry = new THREE.BoxGeometry(2.8, 0.1, 2.2);
         const baseMaterial = new THREE.MeshLambertMaterial({ 
             color: 0x5D4037, 
             flatShading: true 
@@ -187,24 +236,29 @@ export class ChunkManager {
             flatShading: true 
         });
         
-        // Front triangle
+        // Main tent body
+        const tentWidth = 2.6;
+        const tentDepth = 2.0;
+        const tentHeight = 1.8;
+        
+        // Front panel (with entrance)
         const frontGeometry = new THREE.BufferGeometry();
         const frontVertices = new Float32Array([
-            -1.2, 0, 1,     // bottom left
-            1.2, 0, 1,      // bottom right
-            0, 1.5, 0       // top
+            -tentWidth/2, 0, tentDepth/2,     // bottom left
+            tentWidth/2, 0, tentDepth/2,      // bottom right
+            0, tentHeight, 0                   // top
         ]);
         frontGeometry.setAttribute('position', new THREE.BufferAttribute(frontVertices, 3));
         frontGeometry.computeVertexNormals();
         const frontTriangle = new THREE.Mesh(frontGeometry, tentMaterial);
         tentGroup.add(frontTriangle);
         
-        // Back triangle
+        // Back panel
         const backGeometry = new THREE.BufferGeometry();
         const backVertices = new Float32Array([
-            -1.2, 0, -1,    // bottom left
-            1.2, 0, -1,     // bottom right
-            0, 1.5, 0       // top
+            -tentWidth/2, 0, -tentDepth/2,    // bottom left
+            tentWidth/2, 0, -tentDepth/2,     // bottom right
+            0, tentHeight, 0                   // top
         ]);
         backGeometry.setAttribute('position', new THREE.BufferAttribute(backVertices, 3));
         backGeometry.computeVertexNormals();
@@ -214,9 +268,9 @@ export class ChunkManager {
         // Side panels
         const leftGeometry = new THREE.BufferGeometry();
         const leftVertices = new Float32Array([
-            -1.2, 0, 1,     // front bottom
-            -1.2, 0, -1,    // back bottom
-            0, 1.5, 0       // top
+            -tentWidth/2, 0, tentDepth/2,     // front bottom
+            -tentWidth/2, 0, -tentDepth/2,    // back bottom
+            0, tentHeight, 0                   // top
         ]);
         leftGeometry.setAttribute('position', new THREE.BufferAttribute(leftVertices, 3));
         leftGeometry.computeVertexNormals();
@@ -225,14 +279,65 @@ export class ChunkManager {
         
         const rightGeometry = new THREE.BufferGeometry();
         const rightVertices = new Float32Array([
-            1.2, 0, 1,      // front bottom
-            1.2, 0, -1,     // back bottom
-            0, 1.5, 0       // top
+            tentWidth/2, 0, tentDepth/2,      // front bottom
+            tentWidth/2, 0, -tentDepth/2,     // back bottom
+            0, tentHeight, 0                   // top
         ]);
         rightGeometry.setAttribute('position', new THREE.BufferAttribute(rightVertices, 3));
         rightGeometry.computeVertexNormals();
         const rightPanel = new THREE.Mesh(rightGeometry, tentMaterial);
         tentGroup.add(rightPanel);
+        
+        // Add a floor inside the tent
+        const floorGeometry = new THREE.PlaneGeometry(tentWidth - 0.2, tentDepth - 0.2);
+        const floorMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x8B4513, 
+            flatShading: true,
+            side: THREE.DoubleSide
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0.11; // Just above the base
+        tentGroup.add(floor);
+        
+        // Add entrance flap
+        const flapWidth = 1.0;
+        const flapHeight = 1.2;
+        const entranceGeometry = new THREE.PlaneGeometry(flapWidth, flapHeight);
+        const entranceMaterial = new THREE.MeshLambertMaterial({ 
+            color: tentColors[colorIndex], 
+            flatShading: true,
+            side: THREE.DoubleSide
+        });
+        const entranceFlap = new THREE.Mesh(entranceGeometry, entranceMaterial);
+        
+        // Position flap at front of tent, partially open
+        entranceFlap.position.set(0, flapHeight/2, tentDepth/2);
+        entranceFlap.rotation.y = Math.PI/4; // Partially open
+        tentGroup.add(entranceFlap);
+        
+        // Add a small flag or banner on top
+        const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4);
+        const poleMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x8B4513, 
+            flatShading: true 
+        });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(0, tentHeight + 0.4, 0);
+        tentGroup.add(pole);
+        
+        // Flag
+        const flagGeometry = new THREE.PlaneGeometry(0.6, 0.3);
+        const flagColor = 0xFFD700; // Gold color for contrast
+        const flagMaterial = new THREE.MeshLambertMaterial({ 
+            color: flagColor, 
+            flatShading: true,
+            side: THREE.DoubleSide
+        });
+        const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+        flag.position.set(0.3, tentHeight + 0.6, 0);
+        flag.rotation.y = Math.PI/2;
+        tentGroup.add(flag);
         
         parent.add(tentGroup);
         this.worldObjects.push(tentGroup);
