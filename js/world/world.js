@@ -9,7 +9,7 @@ export class WorldManager {
         // World settings
         this.chunkSize = 4; // Size of a single tile
         this.chunksPerDimension = 5; // How many chunks to render in each direction
-        this.visibleDistance = 150; // Increased from 50 to 150 for better zoom-out view
+        this.visibleDistance = 50; // Distance at which chunks are visible
         
         this.tiles = [];
         this.worldObjects = []; // Track all objects in the world
