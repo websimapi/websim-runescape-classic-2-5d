@@ -296,21 +296,62 @@ export class ChunkManager {
         floor.position.y = 0.11; // Just above the base
         tentGroup.add(floor);
         
-        // Add entrance flap
-        const flapWidth = 1.0;
-        const flapHeight = 1.2;
-        const entranceGeometry = new THREE.PlaneGeometry(flapWidth, flapHeight);
-        const entranceMaterial = new THREE.MeshLambertMaterial({ 
+        // Create a tent opening (darkened area)
+        const openingWidth = 1.0;
+        const openingHeight = 1.2;
+        const openingGeometry = new THREE.PlaneGeometry(openingWidth, openingHeight);
+        const openingMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x281A10, // Dark interior color
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide
+        });
+        const opening = new THREE.Mesh(openingGeometry, openingMaterial);
+        
+        // Position opening at front of tent
+        opening.position.set(0, openingHeight/2, tentDepth/2 + 0.01);
+        tentGroup.add(opening);
+        
+        // Add two entrance flaps (left and right sides)
+        const flapWidth = openingWidth * 0.55; // Slightly overlapping
+        const flapHeight = openingHeight;
+        const flapGeometry = new THREE.PlaneGeometry(flapWidth, flapHeight);
+        const flapMaterial = new THREE.MeshLambertMaterial({ 
             color: tentColors[colorIndex], 
             flatShading: true,
             side: THREE.DoubleSide
         });
-        const entranceFlap = new THREE.Mesh(entranceGeometry, entranceMaterial);
         
-        // Position flap at front of tent, partially open
-        entranceFlap.position.set(-0.2, flapHeight/2, tentDepth/2 - 0.05); // Slight offset for visibility
-        entranceFlap.rotation.y = Math.PI/6; // Partially open
-        tentGroup.add(entranceFlap);
+        // Left flap (tied back)
+        const leftFlap = new THREE.Mesh(flapGeometry, flapMaterial);
+        leftFlap.position.set(-openingWidth/2 + flapWidth/4, openingHeight/2, tentDepth/2 + 0.02);
+        leftFlap.rotation.y = Math.PI/3; // Tied back to the left
+        tentGroup.add(leftFlap);
+        
+        // Right flap (tied back)
+        const rightFlap = new THREE.Mesh(flapGeometry, flapMaterial);
+        rightFlap.position.set(openingWidth/2 - flapWidth/4, openingHeight/2, tentDepth/2 + 0.02);
+        rightFlap.rotation.y = -Math.PI/3; // Tied back to the right
+        tentGroup.add(rightFlap);
+        
+        // Add small ropes to hold flaps open (visual detail)
+        const ropeGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 4);
+        const ropeMaterial = new THREE.MeshLambertMaterial({
+            color: 0x8B4513,
+            flatShading: true
+        });
+        
+        // Left rope
+        const leftRope = new THREE.Mesh(ropeGeometry, ropeMaterial);
+        leftRope.position.set(-openingWidth/2 - 0.1, openingHeight/2, tentDepth/2 - 0.2);
+        leftRope.rotation.z = Math.PI/4;
+        tentGroup.add(leftRope);
+        
+        // Right rope
+        const rightRope = new THREE.Mesh(ropeGeometry, ropeMaterial);
+        rightRope.position.set(openingWidth/2 + 0.1, openingHeight/2, tentDepth/2 - 0.2);
+        rightRope.rotation.z = -Math.PI/4;
+        tentGroup.add(rightRope);
         
         // Add a small flag or banner on top
         const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6);
