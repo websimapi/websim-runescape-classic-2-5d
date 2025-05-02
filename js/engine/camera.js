@@ -31,11 +31,8 @@ export class CameraManager {
         const aspectRatio = window.innerWidth / window.innerHeight;
         
         // Update orthographic camera
-        const zoom = 15 * (25 / this.cameraDistance);
-        this.camera.left = -zoom * aspectRatio;
-        this.camera.right = zoom * aspectRatio;
-        this.camera.top = zoom;
-        this.camera.bottom = -zoom;
+        this.camera.left = -15 * aspectRatio;
+        this.camera.right = 15 * aspectRatio;
         this.camera.updateProjectionMatrix();
     }
     
@@ -78,18 +75,12 @@ export class CameraManager {
         this.camera.lookAt(new THREE.Vector3(targetPos.x, 0, targetPos.z));
         
         // Adjust orthographic camera zoom based on distance
-        // Use a modified calculation to prevent bottom culling when zoomed out
         const zoom = 15 * (25 / this.cameraDistance);
         const aspectRatio = window.innerWidth / window.innerHeight;
-        
-        // Apply a correction factor to ensure bottom elements remain visible when zoomed out
-        const zoomFactor = this.cameraDistance / this.minZoom;
-        const heightCorrection = 1 + Math.max(0, (zoomFactor - 1) * 0.15);
-        
         this.camera.left = -zoom * aspectRatio;
         this.camera.right = zoom * aspectRatio;
-        this.camera.top = zoom * heightCorrection;
-        this.camera.bottom = -zoom * heightCorrection;
+        this.camera.top = zoom;
+        this.camera.bottom = -zoom;
         this.camera.updateProjectionMatrix();
     }
 }
