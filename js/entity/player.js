@@ -20,7 +20,8 @@ export class PlayerManager {
             totalFrames: 4, // 4 frames per direction
             frameDuration: 150, // milliseconds per frame
             lastFrameTime: 0,
-            isAnimating: false
+            isAnimating: false,
+            facingLeft: false // Track if character should be flipped
         };
         
         // Create texture coordinates for sprite sheet
@@ -75,9 +76,11 @@ export class PlayerManager {
         spriteMaterial.map.repeat.set(initialFrame.width, initialFrame.height);
         spriteMaterial.map.offset.set(initialFrame.x, initialFrame.y);
         
+        // Create sprite with proper centering
         this.playerSprite = new THREE.Sprite(spriteMaterial);
         this.playerSprite.scale.set(3, 4, 1);
         this.playerSprite.position.set(0, 2, 0);
+        this.playerSprite.center.set(0.5, 0.25); // Adjust sprite center to better position the character
         this.scene.add(this.playerSprite);
         
         // Add a shadow circle under the player
@@ -138,21 +141,38 @@ export class PlayerManager {
             
             // Update UV coordinates for the current frame
             this.playerSprite.material.map.offset.set(currentFrame.x, currentFrame.y);
+            
+            // Apply horizontal flipping if needed
+            if (this.animationState.facingLeft) {
+                // For left-facing, we flip the sprite horizontally by negating the X-scale
+                this.playerSprite.scale.setX(-Math.abs(this.playerSprite.scale.x));
+            } else {
+                // For right-facing, use positive scale
+                this.playerSprite.scale.setX(Math.abs(this.playerSprite.scale.x));
+            }
         }
     }
     
     updatePlayerDirection(direction) {
         // Determine direction based on movement vector
-        let newDirection = this.animationState.currentDirection;
+        let newDirection;
         
-        // We'll use a simple left/right/down system for the 3 sprite rows
-        // The visible direction depends on the horizontal component primarily
+        // Check if we're moving primarily horizontally or vertically
         if (Math.abs(direction.x) > Math.abs(direction.z)) {
-            // Moving primarily left/right
-            newDirection = direction.x > 0 ? 'right' : 'left';
+            // Primarily horizontal movement
+            if (direction.x > 0) {
+                // Moving right
+                newDirection = 'right';
+                this.animationState.facingLeft = false;
+            } else {
+                // Moving left - use right animation but flip the sprite
+                newDirection = 'right'; // Use right animation frames
+                this.animationState.facingLeft = true;
+            }
         } else {
-            // Moving primarily forward/backward or no movement
-            newDirection = 'down'; // Default direction
+            // Primarily vertical movement
+            newDirection = 'down';
+            this.animationState.facingLeft = false;
         }
         
         // Only update direction if it changed
@@ -163,6 +183,13 @@ export class PlayerManager {
             // Update sprite with first frame of new direction
             const firstFrame = this.animationFrames[newDirection][0];
             this.playerSprite.material.map.offset.set(firstFrame.x, firstFrame.y);
+            
+            // Apply horizontal flipping immediately
+            if (this.animationState.facingLeft) {
+                this.playerSprite.scale.setX(-Math.abs(this.playerSprite.scale.x));
+            } else {
+                this.playerSprite.scale.setX(Math.abs(this.playerSprite.scale.x));
+            }
         }
     }
     
