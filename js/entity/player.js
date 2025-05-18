@@ -5,16 +5,75 @@ export class PlayerManager {
         this.scene = scene;
         this.playerTexture = playerTexture;
         
+        // Initialize animation properties
+        this.setupAnimations();
+        
         // Create the player entity
         this.createPlayer();
     }
     
+    setupAnimations() {
+        // Animation configuration
+        this.animationState = {
+            currentDirection: 'down', // 'down', 'left', 'right'
+            currentFrame: 0,
+            totalFrames: 4, // 4 frames per direction
+            frameDuration: 150, // milliseconds per frame
+            lastFrameTime: 0,
+            isAnimating: false
+        };
+        
+        // Create texture coordinates for sprite sheet
+        // Our sprite sheet has 3 rows (directions) with 4 frames each
+        this.animationFrames = {
+            down: [],
+            left: [],
+            right: []
+        };
+        
+        // Calculate UV coordinates for each frame in the sprite sheet
+        const frameWidth = 1/4;  // 4 frames horizontally
+        const frameHeight = 1/3; // 3 rows vertically
+        
+        // For each direction (row in sprite sheet)
+        for (let frame = 0; frame < 4; frame++) {
+            // Down animation (top row)
+            this.animationFrames.down.push({
+                x: frame * frameWidth,
+                y: 0,
+                width: frameWidth,
+                height: frameHeight
+            });
+            
+            // Left animation (middle row)
+            this.animationFrames.left.push({
+                x: frame * frameWidth,
+                y: frameHeight,
+                width: frameWidth,
+                height: frameHeight
+            });
+            
+            // Right animation (bottom row)
+            this.animationFrames.right.push({
+                x: frame * frameWidth,
+                y: frameHeight * 2,
+                width: frameWidth,
+                height: frameHeight
+            });
+        }
+    }
+    
     createPlayer() {
-        // Create a billboard-style sprite for the player (2D in 3D world)
+        // Create a sprite material with initial frame
+        const initialFrame = this.animationFrames.down[0];
         const spriteMaterial = new THREE.SpriteMaterial({ 
             map: this.playerTexture,
             transparent: true
         });
+        
+        // Set UV coordinates for the initial frame
+        spriteMaterial.map.repeat.set(initialFrame.width, initialFrame.height);
+        spriteMaterial.map.offset.set(initialFrame.x, initialFrame.y);
         
         this.playerSprite = new THREE.Sprite(spriteMaterial);
         this.playerSprite.scale.set(3, 4, 1);
@@ -39,12 +98,17 @@ export class PlayerManager {
             targetPosition: null,
             isMoving: false,
             moveSpeed: 2, // Units per second
+            lastDirection: new THREE.Vector3(0, 0, -1) // Default facing front
         };
     }
     
     setTargetPosition(position) {
         this.playerState.targetPosition = position;
         this.playerState.isMoving = true;
+        
+        // Start animation when movement begins
+        this.animationState.isAnimating = true;
+        this.animationState.lastFrameTime = Date.now();
     }
     
     isMoving() {
@@ -55,10 +119,67 @@ export class PlayerManager {
         return this.playerSprite ? this.playerSprite.position : new THREE.Vector3(0, 0, 0);
     }
     
+    updateAnimation() {
+        // Only animate if player is moving
+        if (!this.animationState.isAnimating) return;
+        
+        const now = Date.now();
+        const elapsed = now - this.animationState.lastFrameTime;
+        
+        // Update frame if enough time has passed
+        if (elapsed > this.animationState.frameDuration) {
+            // Move to next frame
+            this.animationState.currentFrame = 
+                (this.animationState.currentFrame + 1) % this.animationState.totalFrames;
+            this.animationState.lastFrameTime = now;
+            
+            // Get current frame data
+            const currentFrame = this.animationFrames[this.animationState.currentDirection][this.animationState.currentFrame];
+            
+            // Update UV coordinates for the current frame
+            this.playerSprite.material.map.offset.set(currentFrame.x, currentFrame.y);
+        }
+    }
+    
+    updatePlayerDirection(direction) {
+        // Determine direction based on movement vector
+        let newDirection = this.animationState.currentDirection;
+        
+        // We'll use a simple left/right/down system for the 3 sprite rows
+        // The visible direction depends on the horizontal component primarily
+        if (Math.abs(direction.x) > Math.abs(direction.z)) {
+            // Moving primarily left/right
+            newDirection = direction.x > 0 ? 'right' : 'left';
+        } else {
+            // Moving primarily forward/backward or no movement
+            newDirection = 'down'; // Default direction
+        }
+        
+        // Only update direction if it changed
+        if (newDirection !== this.animationState.currentDirection) {
+            this.animationState.currentDirection = newDirection;
+            this.animationState.currentFrame = 0; // Reset frame count when direction changes
+            
+            // Update sprite with first frame of new direction
+            const firstFrame = this.animationFrames[newDirection][0];
+            this.playerSprite.material.map.offset.set(firstFrame.x, firstFrame.y);
+        }
+    }
+    
     updatePlayerMovement(deltaTime) {
         // Safety check - only update if player exists and is moving
         if (!this.playerSprite || !this.playerShadow) return;
-        if (!this.playerState.isMoving || !this.playerState.targetPosition) return;
+        if (!this.playerState.isMoving || !this.playerState.targetPosition) {
+            // Stop animation if not moving
+            if (this.animationState.isAnimating) {
+                this.animationState.isAnimating = false;
+                
+                // Reset to standing frame (first frame of current direction)
+                const standingFrame = this.animationFrames[this.animationState.currentDirection][0];
+                this.playerSprite.material.map.offset.set(standingFrame.x, standingFrame.y);
+            }
+            return;
+        }
         
         // Calculate direction vector
         const direction = new THREE.Vector3().subVectors(
@@ -71,11 +192,23 @@ export class PlayerManager {
             this.playerSprite.position.copy(this.playerState.targetPosition);
             this.playerState.isMoving = false;
             this.playerState.targetPosition = null;
+            this.animationState.isAnimating = false;
+            
+            // Reset to standing frame (first frame of current direction)
+            const standingFrame = this.animationFrames[this.animationState.currentDirection][0];
+            this.playerSprite.material.map.offset.set(standingFrame.x, standingFrame.y);
             return;
         }
         
+        // Update player direction based on movement
+        this.updatePlayerDirection(direction);
+        
+        // Update animation frame
+        this.updateAnimation();
+        
         // Normalize direction and apply movement
         direction.normalize();
+        this.playerState.lastDirection.copy(direction);
         const moveAmount = this.playerState.moveSpeed * deltaTime;
         
         // Move player and update shadow

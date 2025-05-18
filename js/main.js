@@ -30,7 +30,7 @@ class RunescapeClassicGame {
         // Load assets first, then initialize game objects and start loop
         this.loadAssets().then(() => {
             this.worldManager = new WorldManager(this.scene, this.grassTexture);
-            this.playerManager = new PlayerManager(this.scene, this.playerTexture);
+            this.playerManager = new PlayerManager(this.scene, this.characterSpritesheet);
             this.inputHandler = new InputHandler(
                 this.canvas, 
                 this.camera, 
@@ -76,9 +76,9 @@ class RunescapeClassicGame {
             this.grassTexture.magFilter = THREE.NearestFilter;
             this.grassTexture.minFilter = THREE.NearestFilter;
             
-            this.playerTexture = await loadTexture('./character.png');
-            this.playerTexture.magFilter = THREE.NearestFilter;
-            this.playerTexture.minFilter = THREE.NearestFilter;
+            this.characterSpritesheet = await loadTexture('./character_spritesheet.png');
+            this.characterSpritesheet.magFilter = THREE.NearestFilter;
+            this.characterSpritesheet.minFilter = THREE.NearestFilter;
             
             return true;
         } catch (error) {
